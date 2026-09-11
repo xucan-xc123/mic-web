@@ -722,10 +722,14 @@ input[type=range]:disabled { opacity: .45; }
 
     <div class="slider-row">
       <div class="slider-head">
-        <div><span class="lb">降噪强度</span><span class="hint">压掉环境杂音</span></div>
-        <div class="val" id="v-nr">35</div>
+        <div><span class="lb">降噪强度</span><span class="hint">压掉环境杂音（开麦后还会自动听环境选档）</span></div>
+        <div class="val" id="v-nr">50</div>
       </div>
-      <input type="range" id="s-nr" min="0" max="100" value="35">
+      <input type="range" id="s-nr" min="0" max="100" value="50">
+    </div>
+    <div class="scene-hint" id="btMicHint" style="display:none; color:#b45309;">
+      🎧 你在用蓝牙耳机/音箱的麦克风：蓝牙通话是窄带模式，<b>底噪天生就大</b>，软件救不了。
+      想要最干净的声音，请改用<b>手机自带的麦克风</b>（摘下蓝牙），或插<b>有线耳机</b>。
     </div>
   </div>
 
@@ -950,6 +954,7 @@ input[type=range]:disabled { opacity: .45; }
     var s = scenes && scenes[k];
     if (!s) return;
     currentScene = k;
+    engine.markUserDenoise();   // 用户手动选档 -> 自动适配让位
     engine.setDenoiseScene(k);
     // 同步"降噪强度"滑块，让用户看到数值也变了（避免两个控件显示矛盾）
     if ($('s-nr')) {
@@ -1149,6 +1154,7 @@ input[type=range]:disabled { opacity: .45; }
      * 就把默认场景 indoor 给清掉了 —— 页面一打开就没有场景是高亮的，
      * 用户会以为"没选中任何降噪档位"。 */
     if (updNr._user) {
+      engine.markUserDenoise();   // 用户手动拖动 -> 自动适配让位
       currentScene = null;
       refreshSceneUI();
       if ($('sceneHint')) $('sceneHint').textContent = '已手动调整降噪强度';
@@ -1512,6 +1518,28 @@ input[type=range]:disabled { opacity: .45; }
   }
   engine.on('state', function (s) {
     if (s && typeof s.lowLatency === 'boolean') refreshLatUI();
+    /* 【2026-09-11 新增】环境噪声自动适配结果：把场景高亮/滑块/提示
+     * 全部同步成引擎实际选的档，并明说"是自动选的"，避免用户困惑。 */
+    if (s && s.autoDenoise && s.scene) {
+      currentScene = s.scene;
+      refreshSceneUI();
+      var scenes = window.MIC_DENOISE_SCENES;
+      var sc = scenes && scenes[s.scene];
+      if (sc) {
+        if ($('s-nr')) $('s-nr').value = sc.denoise;
+        if ($('v-nr')) $('v-nr').textContent = sc.denoise;
+        if ($('sceneHint')) {
+          $('sceneHint').textContent = '🎤 听了 3 秒环境' +
+            (s.level > 0.020 ? '，周围挺吵' : '') + '——已自动开启「' + sc.name +
+            '」降噪' + sc.denoise + '/100。觉得吵可以点上面更强的档位';
+        }
+      }
+    }
+    /* 【2026-09-11 新增】蓝牙麦克风提醒（HFP 窄带底噪大，软件救不了） */
+    if (s && s.btMic) {
+      var bh = $('btMicHint');
+      if (bh) bh.style.display = '';
+    }
   });
   if ($('latSwitch')) {
     $('latSwitch').addEventListener('click', function () {
