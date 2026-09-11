@@ -903,7 +903,11 @@
   }
 
   MicEngine.prototype.on = function (evt, fn) {
-    if (this.listeners[evt]) this.listeners[evt].push(fn);
+    /* 【2026-09-11 修复】旧写法 this.listeners[evt] 不存在时静默丢弃监听——
+     * 新增事件名（如 micrevived）不在初始表里，UI 永远收不到通知。
+     * 改成不存在就创建，任意事件名都能订阅。 */
+    if (!this.listeners[evt]) this.listeners[evt] = [];
+    this.listeners[evt].push(fn);
     return this;
   };
   MicEngine.prototype._emit = function (evt, data) {
@@ -1035,6 +1039,24 @@
   };
 
   /**
+   * 【2026-09-11 新增】把一路新的麦克风流热换到链路头上（共用底层）。
+   * 低延迟模式切换和锁屏自愈都用这一条路径，保证行为一致：
+   * 新流 connect 到链头 -> 旧 source disconnect -> 旧流 track 停掉 -> 换引用。
+   */
+  MicEngine.prototype._swapMicSource = function (ns) {
+    var head = (this.workletReady && this.nodes.fx) ? this.nodes.fx : this.nodes.hp;
+    if (!head) throw new Error('audio graph not ready');
+    var newSrc = this.ctx.createMediaStreamSource(ns);
+    newSrc.connect(head);
+    try { if (this.nodes.src) this.nodes.src.disconnect(); } catch (e) {}
+    try {
+      if (this.stream) this.stream.getTracks().forEach(function (t) { t.stop(); });
+    } catch (e) {}
+    this.stream = ns;
+    this.nodes.src = newSrc;
+  };
+
+  /**
    * 【2026-09-11 新增】切换低延迟模式。
    * 没开麦时只记状态（下次 start() 生效）；
    * 已开麦时热切换：重新拿一路新约束的麦克风流换上去，不断图、不停表，
@@ -1052,21 +1074,51 @@
     }
     var constraints = this._micConstraints();
     return navigator.mediaDevices.getUserMedia(constraints).then(function (ns) {
-      var head = (self.workletReady && self.nodes.fx) ? self.nodes.fx : self.nodes.hp;
-      if (!head) throw new Error('audio graph not ready');
-      var newSrc = self.ctx.createMediaStreamSource(ns);
-      newSrc.connect(head);
-      try { self.nodes.src.disconnect(); } catch (e) {}
-      try {
-        if (self.stream) self.stream.getTracks().forEach(function (t) { t.stop(); });
-      } catch (e) {}
-      self.stream = ns;
-      self.nodes.src = newSrc;
+      self._swapMicSource(ns);
       self._emit('state', { lowLatency: self.lowLatency });
       return true;
     }).catch(function (e) {
       self.lowLatency = !want;   // 回滚，旧流还在跑
       throw e;
+    });
+  };
+
+  /**
+   * 【2026-09-11 新增·锁屏自愈】回前台时体检麦克风，被系统掐死就自动换新流。
+   *
+   * 症状（老板实测）：安卓锁屏后回到页面，效果全没了。
+   * 原因：锁屏瞬间系统把麦克风 track 掐死（readyState 变 ended / muted 卡死），
+   *       回来后 AudioContext 能 resume，但那路已死的流永远不会再出声——
+   *       旧代码只 resume 了上下文，没恢复麦克风，所以"回来还是没声音"。
+   * 正解：visibilitychange 回前台时做三步——
+   *   ① resume 音频上下文 ② 等 600ms（给浏览器切回前台的时间）
+   *   ③ 体检 track：死了就重新 getUserMedia（权限已授过，不弹窗）热换新流。
+   * 恢复成功发 'micrevived' 事件，UI 提示"已自动恢复"。
+   */
+  MicEngine.prototype._micAlive = function () {
+    var t = this.stream && this.stream.getAudioTracks && this.stream.getAudioTracks()[0];
+    return !!t && t.readyState === 'live' && !t.muted;
+  };
+
+  MicEngine.prototype.reviveMicIfNeeded = function () {
+    var self = this;
+    if (!this.running || !this.ctx || !navigator.mediaDevices) {
+      return Promise.resolve(false);
+    }
+    var needCtx = this.ctx.state === 'suspended';
+    var p = needCtx ? this.ctx.resume().catch(function () {}) : Promise.resolve();
+    return p.then(function () {
+      // 给浏览器一点时间把设备切回前台（立刻查会误判）
+      return new Promise(function (res) { setTimeout(res, needCtx ? 600 : 350); });
+    }).then(function () {
+      if (self._micAlive()) return false;   // 没死，什么都不用做
+      return navigator.mediaDevices.getUserMedia(self._micConstraints())
+        .then(function (ns) {
+          self._swapMicSource(ns);
+          self._emit('micrevived', { reason: 'lock-or-background' });
+          return true;
+        })
+        .catch(function () { return false; });   // 拿不到（权限被收走等）：保持现状不炸
     });
   };
 
@@ -2259,18 +2311,24 @@
     if (this._keepAliveWantWakeLock) this.requestWakeLock();
     this.setupMediaSession(o.mediaInfo);
 
-    /* 页面回到前台时重新申请 Wake Lock。
-     * 为什么必须做：浏览器在页面隐藏时会自动释放 Wake Lock，
-     * 只申请一次的话，用户切出去再回来屏幕就不常亮了 —— 用户会以为坏了。 */
+    /* 页面回到前台时重新申请 Wake Lock + 麦克风自愈。
+     * 为什么必须做两件事：
+     * ① 浏览器在页面隐藏时会自动释放 Wake Lock，
+     *    只申请一次的话，用户切出去再回来屏幕就不常亮了 —— 用户会以为坏了。
+     * ② 锁屏/切后台时系统把麦克风 track 掐死（安卓隐私规定），
+     *    只 resume 音频上下文不够 —— 那路死流永远不会再出声（老板实测"锁屏后没效果"）。
+     *    必须体检 track，死了就重新拿一路热换上（见 reviveMicIfNeeded）。 */
     if (!this._wakeLockReacquireBound) {
       this._wakeLockReacquireBound = function () {
-        if (!self._keepAlive || !self._keepAliveWantWakeLock) return;
+        if (!self._keepAlive) return;
         if (document.visibilityState !== 'visible') return;
-        if (self.isWakeLockActive()) return;
-        self.requestWakeLock();
-        // 顺手恢复可能被挂起的音频上下文
-        if (self.running && self.ctx && self.ctx.state === 'suspended') {
-          self.ctx.resume().catch(function () {});
+        // ① Wake Lock 重申（跟用户偏好走）
+        if (self._keepAliveWantWakeLock && !self.isWakeLockActive()) {
+          self.requestWakeLock();
+        }
+        // ② 音频上下文 + 麦克风自愈（只要开着麦就做，不看偏好开关）
+        if (self.running) {
+          try { self.reviveMicIfNeeded().catch(function () {}); } catch (e) {}
         }
       };
       document.addEventListener('visibilitychange', this._wakeLockReacquireBound);
