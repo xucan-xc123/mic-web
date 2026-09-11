@@ -737,7 +737,8 @@ input[type=range]:disabled { opacity: .45; }
       <div class="sw on" id="wakeSwitch"></div>
       <div class="txt">
         <div class="ttl">屏幕常亮<span class="badge-off hide" id="wakeUnsupported">你的浏览器不支持</span></div>
-        <div class="sub">开着它就<b>不会自动黑屏</b>，麦克风也就不会被系统掐断。会稍微费电，插着充电器唱最好。</div>
+        <div class="sub">开着它就<b>不会自动黑屏</b>，麦克风也就不会被系统掐断。会稍微费电，插着充电器唱最好。
+          <span id="wakeDenied" style="display:none;color:#b45309;">⚠️ 常亮没申请上（可能是省电模式）：屏幕黑了麦克风会停，别手动锁屏。</span></div>
       </div>
     </div>
 
@@ -751,6 +752,7 @@ input[type=range]:disabled { opacity: .45; }
 
     <div class="hint-box" style="margin-bottom:11px;">
       ⚠️ <b>说句实话：</b>手机一旦真的黑屏锁上，系统会强制收回麦克风，<u>任何网页都做不到锁屏后继续唱歌</u>（这是手机系统的规定，不是软件能绕的）。所以这里给你的是「<b>不让它锁屏</b>」——效果一样：屏幕亮着，声音就一直有。
+      <br>✅ <b>2026-09-11 更新：</b>就算不小心锁了屏，回到页面后<b>麦克风会自动恢复</b>（不用关掉重开），恢复时会有提示。
     </div>
 
     <div class="card-title" style="font-size:13.5px;margin:14px 0 9px;">如果还是会断，按这 3 步设一下</div>
@@ -1272,9 +1274,13 @@ input[type=range]:disabled { opacity: .45; }
     if (st && st.reason === 'manual') {
       $('wakeSwitch').classList.toggle('on', false);
     }
-    // 浏览器拒绝了常亮申请（省电模式/低电量/切后台）——如实告诉用户，别让开关"骗人"
+    // 浏览器拒绝了常亮申请（省电模式/低电量/切后台）——如实告诉用户，别让开关"骗人"。
+    // 【2026-09-11 修复】警告只显示在常亮卡自己的提示行里，
+    // 不再覆盖 micState 的主状态文字——用户刚开麦，最需要看到的是"已开启"，
+    // 之前那句警告会异步冲掉"唱歌模式已开启"，看起来像软件坏了。
     if (st && st.reason === 'rejected') {
-      showMicState('屏幕常亮没能开启（可能是省电模式）。注意：屏幕黑了麦克风会停');
+      $('wakeSwitch').classList.toggle('on', false);
+      if ($('wakeDenied')) $('wakeDenied').style.display = 'inline';
     }
   });
 
@@ -1522,6 +1528,17 @@ input[type=range]:disabled { opacity: .45; }
     });
     refreshLatUI();
   }
+
+  /* 【2026-09-11 锁屏自愈提示】安卓锁屏/切后台时系统会掐死麦克风（隐私规定），
+   * 引擎在回前台时会自动体检并换一路新流。这里把恢复结果告诉用户，
+   * 避免"回来发现没声音"以为软件坏了。 */
+  engine.on('micrevived', function () {
+    if (typeof mode !== 'undefined' && mode === 'sing') {
+      showMicState('刚从锁屏/后台回来：麦克风被系统掐断过，已自动恢复，继续唱');
+    } else {
+      showMicState('刚从锁屏/后台回来：麦克风已自动恢复，继续说');
+    }
+  });
 
   // 初始化滑块值到引擎（未开麦克风时只更新显示）
   updVol(); updRev(); updHi(); updLo(); updNr();
