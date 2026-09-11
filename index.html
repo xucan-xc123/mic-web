@@ -776,7 +776,7 @@ input[type=range]:disabled { opacity: .45; }
   <div class="card">
     <div class="card-title">解锁高级音效</div>
 
-    <div class="unlocked-badge" id="unlockedBadge">✅ 已解锁全部高级音效，永久可用</div>
+    <div class="unlocked-badge" id="unlockedBadge">🔒 输入下方兑换码，解锁 4 个高级音效</div>
 
     <div id="codeArea">
       <div class="code-row">
@@ -1331,6 +1331,7 @@ input[type=range]:disabled { opacity: .45; }
   function applyUnlocked() {
     unlocked = true;
     engine.setUnlocked(true);
+    $('unlockedBadge').textContent = '✅ 已解锁全部高级音效，永久可用';
     $('unlockedBadge').classList.add('show');
     $('codeArea').style.display = 'none';
     refreshPresetUI();
