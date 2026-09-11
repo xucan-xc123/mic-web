@@ -893,6 +893,9 @@
     this._noiseProbes = [];        // worklet 每 0.5s 上报的底噪电平样本
     this._autoDenoiseDone = false; // 本次开麦已自动选过档（只自动一次）
     this._userDenoise = false;     // 用户手动调过降噪后自动适配永久让位
+    // 【2026-09-11 KTV 话筒模式】仿动圈话筒状态（跨开关麦保留用户偏好）
+    this._ktvOn = false;
+    this._ktvSavedScene = null;
     // 唱歌模式
     this.singing = false;             // 是否处于唱歌模式
     // 注意：这里的初值必须与 SING_CONFIG['original'] 及 index.html 的滑块 value 保持一致，
@@ -1245,6 +1248,15 @@
       high.frequency.value = 3200;
       high.gain.value = 0;
 
+      // (c2) 低通滤波【2026-09-11 KTV 话筒模式新增】
+      // 默认 20000Hz = 全频直通（等于不存在）；
+      // KTV 话筒模式下调到 ~10.5kHz，仿动圈话筒的高频自然滚降——
+      // 环境里的"嘶嘶"高频噪声（摩擦声/电子噪声）被物理性压掉。
+      var lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 20000;
+      lp.Q.value = 0.707;
+
       // (d) 压缩器：防止大声破音，稳定音量
       var comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -22;
@@ -1288,7 +1300,9 @@
       head.connect(hp);
       hp.connect(low);
       low.connect(high);
-      high.connect(comp);
+      high.connect(lp);
+      lp.connect(comp);
+      self.nodes.lp = lp;
 
       // 人声美化节点（唱歌模式）：串在压缩之后、混响之前
       var tail = comp;
@@ -1551,6 +1565,13 @@
     this._setGate(p.gate);
     this._setNotch(!!p.notch);
 
+    // 【2026-09-11 KTV 话筒模式】开着时保持仿动圈修饰：
+    // 预设会把 hp/comp 拉回预设值，这里在最后重新叠加 KTV 音色，
+    // 保证"开着 KTV 模式切预设"时修饰不丢。
+    if (this._ktvOn) {
+      try { this._applyKtvTone(); } catch (e) {}
+    }
+
     // 唱歌模式：把该风格的美化参数同步给 Worklet（用户手动调过则以用户值为准）
     if (this.singing && p.voice && !this._userTouchedVoice) {
       this._voiceFx.correct = Math.round(p.voice.correct * 100);
@@ -1646,7 +1667,8 @@
   };
 
   MicEngine.prototype.setDenoise = function (v) {
-    this._userGain.denoise = v;    var vv = Math.max(0, Math.min(100, v)) / 100;
+    this._userGain.denoise = v;
+    var vv = Math.max(0, Math.min(100, v)) / 100;
     // (a) 噪声门：安静时压残余底噪（0 到 100 -> 门限 0.0015 ~ 0.0465）
     var th = 0.0015 + vv * 0.045;
     this._setGate(th);
@@ -1697,6 +1719,7 @@
    * ================================================================ */
   MicEngine.prototype._onNoiseProbe = function (v) {
     if (!this.running) return;
+    if (this._ktvOn) return;   // KTV 话筒模式自带 KTV 场景降噪，自动适配别打架
     this._noiseProbes.push(v);
     if (this._noiseProbes.length > 12) this._noiseProbes.shift();
     if (this._autoDenoiseDone || this._userDenoise) return;
@@ -1720,6 +1743,58 @@
   /* 用户手动调过降噪（点场景/拖滑块）之后，自动适配永久让位 */
   MicEngine.prototype.markUserDenoise = function () {
     this._userDenoise = true;
+  };
+
+  /* ================================================================
+   * 【2026-09-11 新增】KTV 话筒模式（仿动圈话筒）
+   *
+   * 老板问："为什么 KTV 的话筒听不到环境嘈杂声？"
+   * 全网调研结论（2026-09-11）：KTV 话筒干净靠的是【物理】不是算法——
+   *   ① 动圈拾音头灵敏度低，只收"贴着嘴"的近讲人声，远处环境声进不来；
+   *   ② 心形指向：侧面声音衰减 10~15dB，背面更多（手机麦是全向的）；
+   *   ③ 近讲效应：嘴贴麦 2~5cm，人声信号远强于环境 -> 信噪比天然高。
+   * 手机网页拿不到多路麦克风做波束成形，但可以【软件仿动圈三件套】：
+   *   a) 低切上移 80 -> 110Hz（环境隆隆/手持摩擦噪进不来）
+   *   b) 低通 10.5kHz（动圈麦高频自然滚降区，嘶嘶摩擦/电子噪声压掉）
+   *   c) 压缩加深（-26dB/5:1，仿 KTV 调音台把话筒信号压稳）
+   *   d) 降噪自动切到 KTV/车里强档（68/100，含强噪声门）
+   * 关闭时恢复原预设音色 + 原降噪场景。开着时切预设也保持修饰。
+   * ================================================================ */
+  MicEngine.prototype._applyKtvTone = function () {
+    var n = this.nodes;
+    if (!n.hp || !this.ctx) return;
+    var now = this.ctx.currentTime;
+    function ramp(param, val) {
+      try { param.setTargetAtTime(val, now, 0.06); }
+      catch (e) { try { param.value = val; } catch (e2) {} }
+    }
+    ramp(n.hp.frequency, 110);                 // a) 低切上移
+    if (n.lp) ramp(n.lp.frequency, 10500);     // b) 高频滚降
+    if (n.comp) {
+      ramp(n.comp.threshold, -26);             // c) 压缩加深
+      ramp(n.comp.ratio, 5);
+    }
+  };
+
+  MicEngine.prototype.setKtvMic = function (on) {
+    var want = !!on;
+    if (want === !!this._ktvOn) return true;
+    this._ktvOn = want;
+    if (want) {
+      this._ktvSavedScene = this._scene || 'indoor';   // 记住关闭时要还原的降噪场景
+      this._applyKtvTone();
+      this.setDenoiseScene('ktv');                     // d) KTV 场景降噪（68/100 + 强门限）
+    } else {
+      try { this._applyPreset(this.currentPreset, false); } catch (e) {}   // 音色还原
+      // lp（低通）不在预设管理范围内，手动还原为全频直通
+      if (this.nodes.lp) {
+        try { this.nodes.lp.frequency.setTargetAtTime(20000, this.ctx.currentTime, 0.06); }
+        catch (e) { try { this.nodes.lp.frequency.value = 20000; } catch (e2) {} }
+      }
+      try { this.setDenoiseScene(this._ktvSavedScene || 'indoor'); } catch (e) {}
+    }
+    this._emit('state', { ktvMic: want });
+    return true;
   };
 
   MicEngine.prototype.getDenoiseScenes = function () { return DENOISE_SCENES; };
