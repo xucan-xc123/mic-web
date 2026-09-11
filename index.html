@@ -688,6 +688,14 @@ input[type=range]:disabled { opacity: .45; }
       <input type="range" id="s-vol" min="0" max="100" value="70">
     </div>
 
+    <!-- 低延迟模式开关（2026-09-11）：关掉回声消除省 100~200ms，戴耳机跟唱更同步 -->
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">低延迟模式 <span class="tag">推荐开</span></span><span class="hint">戴耳机唱歌/监听建议开，跟唱更同步；用音箱外放听到回声就关掉</span></div>
+        <div class="sw on" id="latSwitch"></div>
+      </div>
+    </div>
+
     <div class="slider-row">
       <div class="slider-head">
         <div><span class="lb">混响强度</span><span class="hint">回声大小</span></div>
@@ -889,6 +897,10 @@ input[type=range]:disabled { opacity: .45; }
       return;
     }
     engine.setPreset(k);
+    /* 【2026-09-11】预设现在自带专业链参数（去浑浊/去鼻音/临场/空气/饱和），
+     * 切预设后把专业音色滑块同步到预设值，UI 和实际听感保持一致；
+     * 用户拖过专业滑块的话以用户的为准，下次切预设再跟随。 */
+    currentPro = null; syncProSliders(); refreshProUI();
     refreshPresetUI();
   }
 
@@ -1034,24 +1046,28 @@ input[type=range]:disabled { opacity: .45; }
         setMicBtn(true);
         // 开麦 = 麦克风权限已拿到，这时浏览器才肯给设备起名字，重新检测一次播放设备
         try { devRefresh(); } catch (e) {}
-        // 唱歌/说话模式用不同文案
+        // 唱歌/说话模式用不同文案（附上设备延迟，让老板知道延迟有多少、剩多少是蓝牙的锅）
+        var latTxt = engine.latencyMs > 0 ? '（设备延迟约 ' + engine.latencyMs + 'ms' + (engine.lowLatency ? '，低延迟模式' : '') + '）' : '';
         if (typeof mode !== 'undefined' && mode === 'sing') {
-          showMicState('唱歌模式已开启，开唱吧');
+          showMicState('唱歌模式已开启，开唱吧' + latTxt + '。戴耳机跟唱更同步；蓝牙耳机/音箱另有 0.2 秒以上延迟属正常');
           // 注意顺序：start() 完成后 Worklet 才就绪，
           // 这时再 setSinging(true) 才能真正打开美化（_voiceOn 才会是 true）。
           engine.setSinging(true);
           // 开麦后把界面上滑块的值推给引擎（避免被预设默认值覆盖）
           applyAllSliders();
           updCorrect(); updFormant(); updRetune(); updThick(); updDeEss();
+          /* 【2026-09-11】开麦时预设的专业链参数已套上，把专业滑块刷成实际值 */
+          currentPro = null; syncProSliders(); refreshProUI();
           // 若此刻仍没生效，才提示降级（正常情况下不会走到）
           if (!engine.getVoiceFx().on) {
             showMicState('唱歌模式已开启（本机暂不支持实时修音，其余美化仍生效）', '#b45309');
           }
         } else {
-          showMicState('麦克风工作中，对着手机说话吧');
+          showMicState('麦克风工作中，对着手机说话吧' + latTxt);
           // 把 UI 上的滑块值同步给引擎
           engine.setPreset(engine.currentPreset);
           applyAllSliders();
+          currentPro = null; syncProSliders(); refreshProUI();
         }
       })
       .catch(function (err) {
@@ -1291,6 +1307,8 @@ input[type=range]:disabled { opacity: .45; }
       $('modeNote').textContent = '唱歌模式：已切换唱歌音效（本机暂不支持实时修音，其余美化仍生效）';
     }
     if (isSing) syncVoiceSliders();
+    /* 【2026-09-11】模式切换会重套预设（含专业链参数），同步专业滑块显示 */
+    currentPro = null; syncProSliders(); refreshProUI();
     /* 【2026-09-10】户外唱歌降噪引导：唱歌模式最怕环境嘈杂，
      * 如果用户还停在低降噪档，主动指路「户外/人群」强档（不擅自改设置）。 */
     if (isSing && (currentScene === 'off' || currentScene === 'indoor') && $('sceneHint')) {
@@ -1475,6 +1493,34 @@ input[type=range]:disabled { opacity: .45; }
     var _badge = $('unlockedBadge');
     if (_badge) _badge.textContent = '🧪 测试模式：全部高级功能已解锁（本机/局域网测试专用）';
     showMicState('测试模式已开启，所有功能都能直接用');
+  }
+
+  /* =============================================================
+   * 4.0c 低延迟模式开关（2026-09-11 新增）
+   * 原理：关掉回声消除/自动增益，省 100~200ms（戴耳机时这两项没用）。
+   * 开麦状态下切换会自动热重启麦克风流，约半秒，不断开已有效果。
+   * ============================================================= */
+  function refreshLatUI() {
+    var sw = $('latSwitch');
+    if (sw) sw.classList.toggle('on', !!engine.lowLatency);
+  }
+  engine.on('state', function (s) {
+    if (s && typeof s.lowLatency === 'boolean') refreshLatUI();
+  });
+  if ($('latSwitch')) {
+    $('latSwitch').addEventListener('click', function () {
+      var want = !engine.lowLatency;
+      engine.setLowLatency(want).then(function () {
+        refreshLatUI();
+        showMicState(want
+          ? '低延迟模式已开：跟唱更同步（适合戴耳机；音箱外放听到回声就关掉）'
+          : '已切到外放模式：开回声消除防啸叫，延迟会比低延迟模式大一点');
+      }).catch(function () {
+        refreshLatUI();
+        showMicState('切换失败，麦克风可能被占用，请重试', '#dc2626');
+      });
+    });
+    refreshLatUI();
   }
 
   // 初始化滑块值到引擎（未开麦克风时只更新显示）
