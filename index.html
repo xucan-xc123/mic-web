@@ -632,6 +632,13 @@ input[type=range]:disabled { opacity: .45; }
   <!-- 模块 1.5：降噪场景（户外唱歌必备） -->
   <div class="card hide" id="denoiseCard">
     <div class="card-title">降噪场景 <span class="tag">户外唱歌必选</span></div>
+    <div class="keep-row" style="margin-bottom:10px;">
+      <div class="sw" id="ktvSwitch"></div>
+      <div class="txt">
+        <div class="ttl">🎤 KTV 话筒模式</div>
+        <div class="sub">仿 KTV 无线话筒：压掉环境声、只收嘴边的声音。<b>关键用法：嘴贴近手机底部的话筒孔（2~5 厘米）</b>——KTV 话筒干净的最大秘密就是"离嘴近"，声音够大声环境声就进不来。</div>
+      </div>
+    </div>
     <div class="scene-tip" id="sceneTip">在户外/人多的地方，选「户外/人群」，能把周围嘈杂声压下去。</div>
     <div class="scenes" id="scenes"><!-- JS 渲染 --></div>
     <div class="scene-hint" id="sceneHint"></div>
@@ -691,7 +698,7 @@ input[type=range]:disabled { opacity: .45; }
     <!-- 低延迟模式开关（2026-09-11）：关掉回声消除省 100~200ms，戴耳机跟唱更同步 -->
     <div class="slider-row">
       <div class="slider-head">
-        <div><span class="lb">低延迟模式 <span class="tag">推荐开</span></span><span class="hint">戴耳机唱歌/监听建议开，跟唱更同步；用音箱外放听到回声就关掉</span></div>
+        <div><span class="lb">低延迟模式 <span class="tag">推荐开</span></span><span class="hint">有线耳机建议开；蓝牙耳机当音箱时"延迟 0.2~0.3 秒"是蓝牙协议固有的（KTV 无线话筒用的是专用低延迟芯片，任何软件都改不了），想跟唱零延迟请插有线耳机</span></div>
         <div class="sw on" id="latSwitch"></div>
       </div>
     </div>
@@ -1555,6 +1562,19 @@ input[type=range]:disabled { opacity: .45; }
       });
     });
     refreshLatUI();
+  }
+
+  /* 【2026-09-11 新增】KTV 话筒模式开关：仿动圈话筒（低切上移+高频滚降+强压缩
+   * +KTV 场景降噪）。用法关键在"近讲"——嘴贴近手机底部麦克风 2~5 厘米。 */
+  if ($('ktvSwitch')) {
+    $('ktvSwitch').addEventListener('click', function () {
+      var want = !engine._ktvOn;
+      engine.setKtvMic(want);
+      this.classList.toggle('on', want);
+      showMicState(want
+        ? 'KTV 话筒模式已开：把嘴贴近手机底部的话筒孔（2~5 厘米），环境声会被压掉'
+        : 'KTV 话筒模式已关：恢复普通模式');
+    });
   }
 
   /* 【2026-09-11 锁屏自愈提示】安卓锁屏/切后台时系统会掐死麦克风（隐私规定），
