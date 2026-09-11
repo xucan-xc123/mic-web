@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f7f8fa">
+<meta name="format-detection" content="telephone=no">
+<!-- 内联 SVG favicon：避免浏览器自动请求 /favicon.ico 产生 404（控制台噪声） -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23eef1f7'/%3E%3Crect x='26' y='12' width='12' height='26' rx='6' fill='%234a6cf7'/%3E%3Cpath d='M18 32a14 14 0 0 0 28 0' stroke='%234a6cf7' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Cline x1='32' y1='46' x2='32' y2='54' stroke='%234a6cf7' stroke-width='4' stroke-linecap='round'/%3E%3Cline x1='24' y1='54' x2='40' y2='54' stroke='%234a6cf7' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<title>手机无线音效话筒</title>
+<style>
+/* ==================================================================
+   手机无线音效话筒 - 样式
+   原则：浅色柔和、极简、手机竖屏优先、按钮够大、无多余动画
+   ================================================================== */
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --bg:        #f7f8fa;
+  --card:      #ffffff;
+  --line:      #e8eaef;
+  --text:      #22262e;
+  --text-sub:  #6b7280;
+  --text-weak: #9aa1ad;
+  --green:     #22c55e;
+  --green-dk:  #16a34a;
+  --red:       #ef4444;
+  --red-dk:    #dc2626;
+  --blue:      #3b82f6;
+  --blue-dk:   #2563eb;
+  --warn-bg:   #fff8e6;
+  --warn-line: #f5d99b;
+  --warn-text: #8a6100;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+               "Helvetica Neue", "Microsoft YaHei", "Source Han Sans SC", sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+body { padding: 0 0 env(safe-area-inset-bottom) 0; }
+
+.wrap {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 18px 16px calc(28px + env(safe-area-inset-bottom));
+}
+
+/* ---------- 顶部标题 ---------- */
+.header { text-align: center; padding: 6px 0 16px; }
+.header h1 {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+.header .sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-weak);
+  line-height: 1.5;
+}
+
+/* ---------- 通用卡片 ---------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 15px;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.card-title .tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-weak);
+  background: #f2f4f7;
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+/* ---------- 麦克风开关（大按钮） ---------- */
+.mic-btn {
+  width: 100%;
+  border: none;
+  border-radius: 18px;
+  padding: 22px 16px;
+  font-size: 21px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background .18s ease;
+  min-height: 76px;
+  letter-spacing: 1px;
+}
+.mic-btn:active { transform: scale(0.985); }
+.mic-btn.on { background: var(--green); }
+.mic-btn .dot {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: rgba(255,255,255,.92);
+  flex: 0 0 auto;
+}
+.mic-btn.on .dot { animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+.mic-state {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-sub);
+  margin-top: 10px;
+  min-height: 19px;
+}
+
+/* 音量条（仅指示，不录音） */
+.meter { height: 6px; background: #eef0f4; border-radius: 4px; overflow: hidden; margin-top: 11px; }
+.meter i { display: block; height: 100%; width: 0%; background: var(--green); border-radius: 4px; transition: width .08s linear; }
+
+/* ---------- 模式选择 ---------- */
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mode {
+  border: 2px solid #e8eaef;
+  border-radius: 14px;
+  padding: 14px 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .16s ease;
+  background: #fff;
+}
+.mode:active { transform: scale(.985); }
+.mode.active { border-color: var(--green); background: #eef9f2; }
+.mode .mi { font-size: 24px; line-height: 1.1; }
+.mode .mn { font-size: 15px; font-weight: 700; margin-top: 5px; color: var(--text); }
+.mode .md { font-size: 11.5px; color: var(--text-sub); margin-top: 3px; }
+.mode.active .mn { color: #17803c; }
+
+.mode-note {
+  margin-top: 11px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  background: #f6f8fa;
+  border-radius: 9px;
+  padding: 9px 11px;
+  line-height: 1.5;
+}
+
+/* ---------- 音高显示 ---------- */
+.pitch-box { margin-top: 13px; }
+.pitch-note {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 800;
+  color: #17803c;
+  letter-spacing: 1px;
+  min-height: 34px;
+  line-height: 34px;
+  font-variant-numeric: tabular-nums;
+}
+.pitch-bar {
+  position: relative;
+  height: 8px;
+  background: #eef0f4;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.pitch-bar i {
+  position: absolute;
+  top: 0; left: 50%;
+  display: block;
+  width: 4px;
+  height: 100%;
+  background: #17803c;
+  border-radius: 2px;
+  transition: left .07s linear;
+}
+.pitch-tip {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-sub);
+  margin-top: 6px;
+}
+
+/* ---------- 唱歌模式提示框 ---------- */
+.hint-box {
+  margin-top: 6px;
+  background: #fdf8ec;
+  border: 1px solid #f2e4c4;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: #8a6d2f;
+  line-height: 1.55;
+}
+
+/* ---------- 隐私声明 ---------- */
+.privacy {
+  background: #eef7f0;
+  border: 1px solid #cfe9d8;
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-size: 13px;
+  color: #1e6b3a;
+  line-height: 1.6;
+  margin-bottom: 14px;
+  display: flex;
+  gap: 8px;
+}
+.privacy b { font-weight: 700; }
+
+/* ---------- 音效预设按钮 ---------- */
+.presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.preset {
+  border: 1.5px solid var(--line);
+  background: #fbfcfd;
+  border-radius: 13px;
+  padding: 13px 4px 11px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s ease;
+  position: relative;
+  min-height: 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.preset .nm { font-size: 14.5px; font-weight: 600; color: var(--text); }
+.preset .ds { font-size: 10.5px; color: var(--text-weak); line-height: 1.35; padding: 0 2px; }
+
+.preset.active {
+  border-color: var(--blue);
+  background: #eff5ff;
+  box-shadow: 0 0 0 2.5px rgba(59,130,246,.13);
+}
+.preset.active .nm { color: var(--blue-dk); }
+
+/* 未解锁：灰色 + 小锁 */
+.preset.locked {
+  background: #f4f5f7;
+  border-color: #e6e8ec;
+  cursor: pointer;
+}
+.preset.locked .nm { color: #a8aeb8; }
+.preset.locked .ds { color: #b9bec8; }
+.preset.locked::after {
+  content: "🔒";
+  position: absolute;
+  top: 5px; right: 6px;
+  font-size: 10px;
+  opacity: .75;
+}
+
+/* ---------- 降噪场景 / 专业音色（2026-09-10 新增） ---------- */
+.scene-tip, .pro-tip {
+  font-size: 12.5px; color: var(--text-weak); line-height: 1.55;
+  margin: -3px 0 11px;
+}
+.scenes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+.scene {
+  position: relative;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 11px 10px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .16s, background .16s, box-shadow .16s;
+  font-family: inherit;
+}
+.scene:active { transform: scale(.985); }
+.scene .nm { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.scene .ds { display: block; font-size: 10.5px; color: var(--text-weak); line-height: 1.4; }
+.scene.active {
+  border-color: var(--blue);
+  background: #eff5ff;
+  box-shadow: 0 0 0 2.5px rgba(59,130,246,.13);
+}
+.scene.active .nm { color: var(--blue-dk); }
+.scene.active::after {
+  content: "✓";
+  position: absolute; top: 5px; right: 8px;
+  font-size: 12px; font-weight: 700; color: var(--blue);
+}
+/* 强档场景加红色小徽章，提醒"压得比较狠" */
+.scene.strong .nm::after {
+  content: "强";
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 9.5px; font-weight: 700;
+  color: #fff; background: #e0623c;
+  border-radius: 4px; padding: 1px 4px;
+  vertical-align: 1.5px;
+}
+.scene-hint {
+  font-size: 11.5px; color: var(--text-weak);
+  margin-top: 10px; line-height: 1.5; min-height: 17px;
+}
+.pros { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-bottom: 15px; }
+.pro {
+  position: relative;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 11px 10px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .16s, background .16s, box-shadow .16s;
+  font-family: inherit;
+}
+.pro:active { transform: scale(.985); }
+.pro .nm { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.pro .ds { display: block; font-size: 10.5px; color: var(--text-weak); line-height: 1.4; }
+.pro.active {
+  border-color: #d9822b;
+  background: #fff8ef;
+  box-shadow: 0 0 0 2.5px rgba(217,130,43,.14);
+}
+.pro.active .nm { color: #a2571a; }
+.pro.active::after {
+  content: "✓";
+  position: absolute; top: 5px; right: 8px;
+  font-size: 12px; font-weight: 700; color: #d9822b;
+}
+
+/* ---------- 锁屏 / 后台保活（2026-09-10 新增） ---------- */
+.keep-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px;
+  background: #f7f9fc;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  margin-bottom: 11px;
+}
+.keep-row .sw {
+  flex: 0 0 auto;
+  width: 44px; height: 26px; border-radius: 13px;
+  background: #d6dbe4; position: relative; cursor: pointer;
+  transition: background .18s; margin-top: 1px;
+}
+.keep-row .sw::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  transition: transform .18s;
+}
+.keep-row .sw.on { background: var(--blue); }
+.keep-row .sw.on::after { transform: translateX(18px); }
+.keep-row .txt { flex: 1 1 auto; min-width: 0; }
+.keep-row .ttl { font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+.keep-row .sub { font-size: 11.5px; color: var(--text-weak); line-height: 1.5; }
+.keep-row .badge-off {
+  font-size: 10px; color: #8a6100; background: #fff4d6;
+  border-radius: 4px; padding: 1.5px 5px; margin-left: 5px;
+  font-weight: 600; vertical-align: 1px;
+}
+.steps { counter-reset: st; margin: 0; padding: 0; list-style: none; }
+.steps li {
+  position: relative;
+  padding-left: 25px;
+  font-size: 12.5px; line-height: 1.6;
+  color: var(--text); margin-bottom: 7px;
+}
+.steps li:last-child { margin-bottom: 0; }
+.steps li::before {
+  counter-increment: st;
+  content: counter(st);
+  position: absolute; left: 0; top: 1.5px;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--blue); color: #fff;
+  font-size: 10.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.steps li b { color: var(--blue-dk); }
+
+/* ---------- 滑块 ────────── */
+.slider-row { margin-bottom: 17px; }
+.slider-row:last-child { margin-bottom: 2px; }
+.slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 7px;
+}
+.slider-head .lb { font-size: 14.5px; font-weight: 600; }
+.slider-head .hint { font-size: 11.5px; color: var(--text-weak); margin-left: 7px; font-weight: 400; }
+.slider-head .val {
+  font-size: 13px; font-weight: 700; color: var(--blue-dk);
+  min-width: 34px; text-align: right; font-variant-numeric: tabular-nums;
+}
+
+input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 30px; background: transparent; cursor: pointer;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 7px; border-radius: 4px; background: #e7eaef;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #fff; border: 2.5px solid var(--blue);
+  box-shadow: 0 1px 4px rgba(0,0,0,.16);
+  margin-top: -10px;
+}
+input[type=range]::-moz-range-track { height: 7px; border-radius: 4px; background: #e7eaef; }
+input[type=range]::-moz-range-thumb {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #fff; border: 2.5px solid var(--blue); box-shadow: 0 1px 4px rgba(0,0,0,.16);
+}
+input[type=range]:disabled { opacity: .45; }
+
+/* ---------- 兑换码 ---------- */
+.code-row { display: flex; gap: 9px; }
+.code-row input[type=text] {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 13px 13px;
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  background: #fbfcfd;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+}
+.code-row input[type=text]:focus { border-color: var(--blue); background: #fff; }
+.code-row button {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 12px;
+  padding: 0 20px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--blue);
+  cursor: pointer;
+  min-height: 48px;
+}
+.code-row button:active { background: var(--blue-dk); }
+.code-row button:disabled { background: #b9c3d2; }
+
+.code-msg { font-size: 13px; margin-top: 10px; min-height: 19px; line-height: 1.5; }
+.code-msg.ok   { color: var(--green-dk); font-weight: 600; }
+.code-msg.bad  { color: var(--red-dk); }
+.code-msg.wait { color: var(--text-sub); }
+
+.unlocked-badge {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green-dk);
+  background: #eefaf1;
+  border: 1px solid #cbeeda;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.unlocked-badge.show { display: flex; }
+
+/* ---------- 提示框 ---------- */
+.notice {
+  border-radius: 12px;
+  padding: 12px 13px;
+  font-size: 12.8px;
+  line-height: 1.65;
+  margin-bottom: 11px;
+}
+.notice.warn { background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn-text); }
+.notice.gray { background: #f4f5f7; border: 1px solid var(--line); color: var(--text-sub); }
+.notice.hide { display: none; }
+.notice b { font-weight: 700; }
+
+/* ---------- 底部 ---------- */
+.footer {
+  font-size: 12.3px;
+  color: var(--text-weak);
+  line-height: 1.75;
+  padding: 4px 4px 0;
+}
+.footer p { margin-bottom: 8px; }
+.footer b { color: var(--text-sub); font-weight: 600; }
+
+/* 窄屏（小手机）适配 */
+@media (max-width: 340px) {
+  .wrap { padding-left: 12px; padding-right: 12px; }
+  .presets { grid-template-columns: repeat(2, 1fr); }
+  .header h1 { font-size: 20px; }
+  .mic-btn { font-size: 19px; padding: 19px 12px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 顶部标题 -->
+  <div class="header">
+    <h1>手机无线音效话筒</h1>
+    <div class="sub">对着手机说话，声音实时变好听<br>从蓝牙音箱放出来</div>
+  </div>
+
+  <!-- 隐私声明 -->
+  <div class="privacy">
+    <span>🔒</span>
+    <div><b>完全不联网处理声音。</b>所有变声效果都在你手机本地实时完成，录音<b>不会上传</b>、<b>不会保存</b>到任何服务器。</div>
+  </div>
+
+  <!-- 环境提示（微信/兼容性，JS 按需显示） -->
+  <div class="notice warn hide" id="notice-wechat">
+    <b>建议用手机自带浏览器或 Chrome 打开。</b>微信里打开麦克风容易失效，换浏览器即可正常使用。
+  </div>
+  <div class="notice warn hide" id="notice-perf">
+    <b>设备性能有限，可能出现杂音或卡顿。</b>已自动降低音质来保证流畅，建议关掉其他后台 App。
+  </div>
+  <div class="notice gray hide" id="notice-ios">
+    <b>iOS 提示：</b>苹果手机的浏览器对麦克风限制较多，如遇无声请改用 Chrome；部分功能在 iOS 上可能不完整。
+  </div>
+
+  <!-- 模式选择：说话 / 唱歌 -->
+  <div class="card">
+    <div class="card-title">选择模式 <span class="tag">点一下切换</span></div>
+    <div class="modes">
+      <div class="mode active" id="modeTalk" data-mode="talk">
+        <div class="mi">🎤</div>
+        <div class="mn">说话模式</div>
+        <div class="md">直播、讲解、聊天</div>
+      </div>
+      <div class="mode" id="modeSing" data-mode="sing">
+        <div class="mi">🎵</div>
+        <div class="mn">唱歌模式</div>
+        <div class="md">自动修音，像歌手</div>
+      </div>
+    </div>
+    <div class="mode-note" id="modeNote">说话模式：适合直播说话，声音清晰自然</div>
+  </div>
+
+  <!-- 麦克风开关 -->
+  <div class="card">
+    <button class="mic-btn" id="micBtn">
+      <span class="dot"></span>
+      <span id="micBtnText">点这里打开麦克风</span>
+    </button>
+    <div class="mic-state" id="micState">麦克风已关闭</div>
+    <div class="meter"><i id="meterBar"></i></div>
+
+    <!-- 音高显示（仅唱歌模式显示） -->
+    <div class="pitch-box hide" id="pitchBox">
+      <div class="pitch-note" id="pitchNote">--</div>
+      <div class="pitch-bar"><i id="pitchNeedle"></i></div>
+      <div class="pitch-tip" id="pitchTip">对着手机唱，这里显示你唱到的音</div>
+    </div>
+  </div>
+
+  <!-- 模块 1：音效预设 -->
+  <div class="card">
+    <div class="card-title">音效选择 <span class="tag">点一下直接切换</span></div>
+    <div class="presets" id="presets"><!-- JS 渲染 --></div>
+  </div>
+
+  <!-- 唱歌模式专属：人声美化 -->
+  <div class="card hide" id="singCard">
+    <div class="card-title">人声美化 <span class="tag">唱歌模式专属</span></div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">音准修正</span><span class="hint">跑调自动拉回，越高越准（50~60 最自然）</span></div>
+        <div class="val" id="v-correct">55</div>
+      </div>
+      <input type="range" id="s-correct" min="0" max="100" value="55">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">音色保持</span><span class="hint">修音后不变"花栗鼠"、还是你的声音</span></div>
+        <div class="val" id="v-formant">85</div>
+      </div>
+      <input type="range" id="s-formant" min="0" max="100" value="85">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">修音速度</span><span class="hint">慢=自然听不出，快=电音感</span></div>
+        <div class="val" id="v-retune">30</div>
+      </div>
+      <input type="range" id="s-retune" min="0" max="100" value="30">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">声音厚度</span><span class="hint">声音更饱满有磁性</span></div>
+        <div class="val" id="v-thick">35</div>
+      </div>
+      <input type="range" id="s-thick" min="0" max="100" value="35">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">齿音抑制</span><span class="hint">去掉刺耳的"嘶嘶"声</span></div>
+        <div class="val" id="v-deess">40</div>
+      </div>
+      <input type="range" id="s-deess" min="0" max="100" value="40">
+    </div>
+
+    <div class="hint-box">
+      💡 <b>建议戴着耳机唱</b>，效果更好、也不会听到延迟。用音箱外放时会有一点点延迟，属正常现象。
+    </div>
+  </div>
+
+  <!-- 模块 1.5：降噪场景（户外唱歌必备） -->
+  <div class="card hide" id="denoiseCard">
+    <div class="card-title">降噪场景 <span class="tag">户外唱歌必选</span></div>
+    <div class="scene-tip" id="sceneTip">在户外/人多的地方，选「户外/人群」，能把周围嘈杂声压下去。</div>
+    <div class="scenes" id="scenes"><!-- JS 渲染 --></div>
+    <div class="scene-hint" id="sceneHint"></div>
+  </div>
+
+  <!-- 模块 1.6：专业音色（歌手级美化） -->
+  <div class="card hide" id="proCard">
+    <div class="card-title">专业音色 <span class="tag">歌手级美化</span></div>
+    <div class="pro-tip">按你唱的歌选一个，一键套用专业录音棚的人声处理。</div>
+    <div class="pros" id="pros"><!-- JS 渲染 --></div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">温暖感</span><span class="hint">声音更厚实有磁性</span></div>
+        <div class="val" id="v-warmth">50</div>
+      </div>
+      <input type="range" id="s-warmth" min="0" max="100" value="50">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">清晰度</span><span class="hint">咬字更清楚，声音更"贴脸"</span></div>
+        <div class="val" id="v-clarity">60</div>
+      </div>
+      <input type="range" id="s-clarity" min="0" max="100" value="60">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">空气感</span><span class="hint">声音更通透、有光泽</span></div>
+        <div class="val" id="v-air">55</div>
+      </div>
+      <input type="range" id="s-air" min="0" max="100" value="55">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">磁性/质感</span><span class="hint">加一点点"电子管"味道</span></div>
+        <div class="val" id="v-drive">30</div>
+      </div>
+      <input type="range" id="s-drive" min="0" max="100" value="30">
+    </div>
+  </div>
+
+  <!-- 模块 2：调节滑块 -->
+  <div class="card">
+    <div class="card-title">细调一下 <span class="tag">不用管也能用</span></div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">人声音量</span><span class="hint">说话声音大小</span></div>
+        <div class="val" id="v-vol">70</div>
+      </div>
+      <input type="range" id="s-vol" min="0" max="100" value="70">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">混响强度</span><span class="hint">回声大小</span></div>
+        <div class="val" id="v-rev">50</div>
+      </div>
+      <input type="range" id="s-rev" min="0" max="100" value="50">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">高音</span><span class="hint">左清亮 · 右沙哑</span></div>
+        <div class="val" id="v-hi">50</div>
+      </div>
+      <input type="range" id="s-hi" min="0" max="100" value="50">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">低音</span><span class="hint">左单薄 · 右浑厚</span></div>
+        <div class="val" id="v-lo">50</div>
+      </div>
+      <input type="range" id="s-lo" min="0" max="100" value="50">
+    </div>
+
+    <div class="slider-row">
+      <div class="slider-head">
+        <div><span class="lb">降噪强度</span><span class="hint">压掉环境杂音</span></div>
+        <div class="val" id="v-nr">35</div>
+      </div>
+      <input type="range" id="s-nr" min="0" max="100" value="35">
+    </div>
+  </div>
+
+  <!-- 模块 2.5：屏幕常亮 / 后台保活 -->
+  <div class="card">
+    <div class="card-title">不锁屏 / 后台保活 <span class="tag">让它一直响</span></div>
+
+    <div class="keep-row">
+      <div class="sw on" id="wakeSwitch"></div>
+      <div class="txt">
+        <div class="ttl">屏幕常亮<span class="badge-off hide" id="wakeUnsupported">你的浏览器不支持</span></div>
+        <div class="sub">开着它就<b>不会自动黑屏</b>，麦克风也就不会被系统掐断。会稍微费电，插着充电器唱最好。</div>
+      </div>
+    </div>
+
+    <div class="keep-row">
+      <div class="sw on" id="keepSwitch"></div>
+      <div class="txt">
+        <div class="ttl">后台保活<span class="badge-off hide" id="msUnsupported">你的浏览器不支持</span></div>
+        <div class="sub">切到别的 App 后不那么容易被系统回收，锁屏界面也能看到「正在使用麦克风」。</div>
+      </div>
+    </div>
+
+    <div class="hint-box" style="margin-bottom:11px;">
+      ⚠️ <b>说句实话：</b>手机一旦真的黑屏锁上，系统会强制收回麦克风，<u>任何网页都做不到锁屏后继续唱歌</u>（这是手机系统的规定，不是软件能绕的）。所以这里给你的是「<b>不让它锁屏</b>」——效果一样：屏幕亮着，声音就一直有。
+    </div>
+
+    <div class="card-title" style="font-size:13.5px;margin:14px 0 9px;">如果还是会断，按这 3 步设一下</div>
+    <ol class="steps">
+      <li>手机「设置」→「应用管理」→ 找到你的浏览器 →「电池」→ 选 <b>不受限制</b>（有的手机叫「允许后台活动」）。</li>
+      <li>「设置」→「电池」→ 关掉 <b>省电模式 / 超级省电</b>。省电模式会在锁屏后杀后台。</li>
+      <li>小米/OPPO/vivo 这类手机，还要去「设置」→「电池」→「应用智能省电」里，把浏览器设为 <b>无限制</b>。</li>
+    </ol>
+  </div>
+
+  <!-- 模块 2.6：外放 / 蓝牙设备 -->
+  <div class="card">
+    <div class="card-title">外放 / 蓝牙设备 <span class="tag">声音从哪出</span></div>
+
+    <div class="keep-row" style="margin-bottom:8px;">
+      <div class="txt">
+        <div class="ttl" id="devTitle">正在检测播放设备…</div>
+        <div class="sub" id="devSub">连上蓝牙音箱后，声音会<b>自动从音箱出来</b>（手机系统负责切换），页面里不用做任何操作。</div>
+      </div>
+    </div>
+
+    <div class="hint-box" style="margin-bottom:0;">
+      🔊 <b>蓝牙延迟提醒：</b>蓝牙音箱/耳机的声音天生有 <b>0.2~0.5 秒延迟</b>（蓝牙传输固有，任何软件都解决不了）。
+      实时听自己唱歌（监听）建议用<b>有线耳机</b>——零延迟；蓝牙适合放伴奏、给别人听。<br>
+      📱 <b>安卓 / iPhone 都能用：</b>核心功能两个平台完全一样。差别只有一点——iPhone 出于隐私不告诉网页蓝牙音箱的名字，
+      但声音照样自动从蓝牙出，不影响使用。
+    </div>
+  </div>
+
+  <!-- 模块 3：兑换码 -->
+  <div class="card">
+    <div class="card-title">解锁高级音效</div>
+
+    <div class="unlocked-badge" id="unlockedBadge">✅ 已解锁全部高级音效，永久可用</div>
+
+    <div id="codeArea">
+      <div class="code-row">
+        <input type="text" id="codeInput" placeholder="输入兑换码" autocomplete="off"
+               autocapitalize="characters" spellcheck="false" inputmode="text">
+        <button id="codeBtn">解锁</button>
+      </div>
+      <div class="code-msg" id="codeMsg">输入兑换码解锁全部高级音效</div>
+    </div>
+  </div>
+
+  <!-- 底部提示 -->
+  <div class="footer">
+    <p><b>怎么连蓝牙音箱：</b>先在手机「设置」里连好蓝牙音箱，再打开这个页面。音箱就当成一个外放喇叭，声音会自动从音箱出来。</p>
+    <p><b>注意：</b>麦克风不要正对音箱喇叭，音量过大容易产生啸叫（尖锐的吱吱声）。出现时把手机拿远一点或调小音量即可。</p>
+    <p><b>关于锁屏：</b>打开麦克风后会自动开启「屏幕常亮」，屏幕不会自己黑掉，声音就能一直响。如果你还是想手动锁屏，那麦克风会停——这是手机系统的限制，任何网页都一样。</p>
+    <p><b>切后台：</b>短时间切出去（比如看歌词）一般没问题，回来会自动恢复。如果发现没声音，点一下页面里的麦克风按钮重新开就行。</p>
+    <p style="color:#b6bcc6;margin-top:12px;">本工具所有声音在手机本地运算，不会上传录音。</p>
+  </div>
+
+</div>
+
+<script src="unlock.js"></script>
+<script src="voice-fx.js"></script>
+<script src="audio.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var engine = new MicEngine();
+  // 便于自动化验证时探针读取（无副作用，只是把实例挂到全局）
+  window.__micEngine = engine;
+  var els = {};
+  var unlocked = false;
+
+  function $(id) { return document.getElementById(id); }
+
+  /* =============================================================
+   * 1. 环境检测（微信 / iOS / 性能）
+   * ============================================================= */
+  var ua = navigator.userAgent || '';
+  var isWechat = /MicroMessenger/i.test(ua);
+  var isIOS = /iPhone|iPad|iPod/i.test(ua);
+  var isSecure = window.isSecureContext ||
+                 location.protocol === 'https:' ||
+                 /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+
+  if (isWechat) $('notice-wechat').classList.remove('hide');
+  if (isIOS) $('notice-ios').classList.remove('hide');
+
+  // 性能检测
+  var perf = engine.detectPerformance();
+  if (perf.lowEnd) $('notice-perf').classList.remove('hide');
+
+  // 非安全上下文：麦克风会被浏览器直接拒绝，先讲清楚
+  if (!isSecure && !isWechat) {
+    var n = document.createElement('div');
+    n.className = 'notice warn';
+    n.innerHTML = '<b>当前是 http 直接打开的，浏览器可能不允许用麦克风。</b>' +
+                  '请改用 https 地址访问，或在本机测试时用 localhost。';
+    $('notice-perf').parentNode.insertBefore(n, $('notice-perf'));
+  }
+
+  /* =============================================================
+   * 2. 渲染音效预设按钮
+   * ============================================================= */
+  function renderPresets() {
+    var box = $('presets');
+    box.innerHTML = '';
+    var keys = ['original', 'smallroom', 'ktv', 'studio', 'theater', 'church'];
+    keys.forEach(function (k) {
+      var p = window.MIC_PRESETS[k];
+      var btn = document.createElement('div');
+      btn.className = 'preset';
+      btn.dataset.key = k;
+      btn.innerHTML = '<div class="nm">' + p.name + '</div>' +
+                      '<div class="ds">' + p.desc + '</div>';
+      btn.addEventListener('click', function () { onPresetClick(k); });
+      box.appendChild(btn);
+    });
+    refreshPresetUI();
+  }
+
+  function refreshPresetUI() {
+    var box = $('presets');
+    var cur = engine.currentPreset;
+    Array.prototype.forEach.call(box.children, function (el) {
+      var k = el.dataset.key;
+      var p = window.MIC_PRESETS[k];
+      var locked = p.premium && !unlocked;
+      el.classList.toggle('locked', locked);
+      el.classList.toggle('active', k === cur && !locked);
+    });
+  }
+
+  function onPresetClick(k) {
+    var p = window.MIC_PRESETS[k];
+    if (p.premium && !unlocked) {
+      showCodeMsg('这是高级音效，输入兑换码就能用', 'wait');
+      $('codeInput').focus();
+      // 滚到兑换码区，方便小白用户找到入口
+      $('codeArea').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!engine.running) {
+      // 还没开麦克风：先记住选择，等开了自动生效
+      engine.currentPreset = k;
+      refreshPresetUI();
+      showMicState('已选好「' + p.name + '」，点上面的按钮打开麦克风');
+      return;
+    }
+    engine.setPreset(k);
+    refreshPresetUI();
+  }
+
+  /* =============================================================
+   * 4b. 降噪场景（2026-09-10 新增 · 对接"户外唱歌"诉求）
+   * ============================================================= */
+  var currentScene = 'indoor';
+
+  function renderScenes() {
+    var box = $('scenes');
+    if (!box || !window.MIC_DENOISE_SCENES) return;
+    box.innerHTML = '';
+    var scenes = window.MIC_DENOISE_SCENES;
+    // 显示顺序：把"户外/人群"放第一位，因为这是老板最主要的场景
+    var order = ['outdoor', 'indoor', 'ktv', 'stage', 'off'];
+    order.forEach(function (k) {
+      var s = scenes[k];
+      if (!s) return;
+      var btn = document.createElement('div');
+      btn.className = 'scene' + (s.denoise >= 75 ? ' strong' : '');
+      btn.dataset.key = k;
+      btn.innerHTML = '<span class="nm">' + s.name + '</span>' +
+                      '<span class="ds">' + s.hint + '</span>';
+      btn.addEventListener('click', function () { onSceneClick(k); });
+      box.appendChild(btn);
+    });
+    refreshSceneUI();
+  }
+
+  function refreshSceneUI() {
+    var box = $('scenes');
+    if (!box) return;
+    Array.prototype.forEach.call(box.children, function (el) {
+      el.classList.toggle('active', el.dataset.key === currentScene);
+    });
+    var scenes = window.MIC_DENOISE_SCENES;
+    var s = scenes && scenes[currentScene];
+    if (s && $('sceneHint')) {
+      $('sceneHint').textContent = '当前：' + s.name + '（降噪 ' + s.denoise + ' / 100）';
+    }
+  }
+
+  function onSceneClick(k) {
+    var scenes = window.MIC_DENOISE_SCENES;
+    var s = scenes && scenes[k];
+    if (!s) return;
+    currentScene = k;
+    engine.setDenoiseScene(k);
+    // 同步"降噪强度"滑块，让用户看到数值也变了（避免两个控件显示矛盾）
+    if ($('s-nr')) {
+      $('s-nr').value = s.denoise;
+      if ($('v-nr')) $('v-nr').textContent = s.denoise;
+    }
+    refreshSceneUI();
+    if (k === 'outdoor') {
+      $('sceneHint').textContent = '当前：户外/人群 —— 已开最强降噪，周围的嘈杂声会被明显压下去';
+    }
+  }
+
+  /* =============================================================
+   * 4c. 专业音色预设（2026-09-10 新增 · 诉求② 歌手级美化）
+   * ============================================================= */
+  var currentPro = null;
+
+  function renderPros() {
+    var box = $('pros');
+    if (!box || !window.MIC_PRO_PRESETS) return;
+    box.innerHTML = '';
+    var pro = window.MIC_PRO_PRESETS;
+    var order = ['pop', 'natural', 'warm', 'airy', 'powerful'];
+    order.forEach(function (k) {
+      var p = pro[k];
+      if (!p) return;
+      var btn = document.createElement('div');
+      btn.className = 'pro';
+      btn.dataset.key = k;
+      btn.innerHTML = '<span class="nm">' + p.name + '</span>' +
+                      '<span class="ds">' + p.hint + '</span>';
+      btn.addEventListener('click', function () { onProClick(k); });
+      box.appendChild(btn);
+    });
+    refreshProUI();
+  }
+
+  function refreshProUI() {
+    var box = $('pros');
+    if (!box) return;
+    Array.prototype.forEach.call(box.children, function (el) {
+      el.classList.toggle('active', el.dataset.key === currentPro);
+    });
+  }
+
+  function onProClick(k) {
+    var pro = window.MIC_PRO_PRESETS;
+    var p = pro && pro[k];
+    if (!p) return;
+    currentPro = k;
+    engine.setProPreset(k);
+    // 同步 4 个滑块显示
+    syncProSliders();
+    refreshProUI();
+  }
+
+  function syncProSliders() {
+    var st = engine.getProState();
+    if ($('s-warmth')) { $('s-warmth').value = st.warmth; $('v-warmth').textContent = st.warmth; }
+    if ($('s-clarity')) { $('s-clarity').value = st.clarity; $('v-clarity').textContent = st.clarity; }
+    if ($('s-air')) { $('s-air').value = st.air; $('v-air').textContent = st.air; }
+    if ($('s-drive')) { $('s-drive').value = st.drive; $('v-drive').textContent = st.drive; }
+  }
+
+  /* =============================================================
+   * 3. 麦克风开关
+   * ============================================================= */
+  function showMicState(txt, color) {
+    els.micState.textContent = txt;
+    els.micState.style.color = color || '';
+  }
+
+  function setMicBtn(on) {
+    els.micBtn.classList.toggle('on', on);
+    els.micBtnText.textContent = on ? '麦克风已打开 · 点一下关闭' : '点这里打开麦克风';
+  }
+
+  function startMic() {
+    /* 【2026-09-11 新增】http 地址被浏览器锁麦克的守卫：
+     * 手机用 http://192.168.x.x 这类地址打开时，浏览器判定"不安全"，
+     * 直接不提供麦克风（navigator.mediaDevices 都没有）。不拦住的话
+     * 用户点了没反应，会以为软件坏了。安卓 Chrome 可用 flags 白名单解开，
+     * iPhone Safari 没有开关，必须等 https。 */
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        showMicState('苹果手机的限制：用 http:// 地址打开时它不给麦克风。请等拿到 https 网址后再用手机测（或先用电脑测试）。', '#b45309');
+      } else {
+        showMicState('手机浏览器把麦克风锁了（http:// 地址都会这样，不是软件坏）。解锁：Chrome 地址栏输入 chrome://flags → 搜索 unsafely → 在「Insecure origins treated as secure」里填本页地址（到 /index.html 前为止，不要结尾斜杠）→ 选 Enabled → 点 RELAUNCH 重启浏览器 → 重新打开本页即可。只需设置一次。', '#b45309');
+      }
+      return;
+    }
+    showMicState('正在请求麦克风权限…');
+    engine.start()
+      .then(function () {
+        setMicBtn(true);
+        // 开麦 = 麦克风权限已拿到，这时浏览器才肯给设备起名字，重新检测一次播放设备
+        try { devRefresh(); } catch (e) {}
+        // 唱歌/说话模式用不同文案
+        if (typeof mode !== 'undefined' && mode === 'sing') {
+          showMicState('唱歌模式已开启，开唱吧');
+          // 注意顺序：start() 完成后 Worklet 才就绪，
+          // 这时再 setSinging(true) 才能真正打开美化（_voiceOn 才会是 true）。
+          engine.setSinging(true);
+          // 开麦后把界面上滑块的值推给引擎（避免被预设默认值覆盖）
+          applyAllSliders();
+          updCorrect(); updFormant(); updRetune(); updThick(); updDeEss();
+          // 若此刻仍没生效，才提示降级（正常情况下不会走到）
+          if (!engine.getVoiceFx().on) {
+            showMicState('唱歌模式已开启（本机暂不支持实时修音，其余美化仍生效）', '#b45309');
+          }
+        } else {
+          showMicState('麦克风工作中，对着手机说话吧');
+          // 把 UI 上的滑块值同步给引擎
+          engine.setPreset(engine.currentPreset);
+          applyAllSliders();
+        }
+      })
+      .catch(function (err) {
+        setMicBtn(false);
+        var msg = (err && (err.name || err.message)) || '';
+        if (/NotAllowed|Permission|denied/i.test(msg)) {
+          showMicState('需要麦克风权限才能使用本工具，请在浏览器设置里允许后重试', '#dc2626');
+        } else if (/NotFound|Devices/i.test(msg)) {
+          showMicState('没找到麦克风设备，请检查手机是否插了耳机或被其他 App 占用', '#dc2626');
+        } else if (/not supported|不支持/i.test(msg)) {
+          showMicState('这个浏览器不支持音频处理，请换 Chrome 或手机自带浏览器', '#dc2626');
+        } else {
+          showMicState('打开失败：' + msg + '，请换 Chrome 或手机自带浏览器重试', '#dc2626');
+        }
+      });
+  }
+
+  function stopMic() {
+    engine.stop();
+    setMicBtn(false);
+    showMicState('麦克风已关闭');
+    els.meterBar.style.width = '0%';
+  }
+
+  els.micBtn = $('micBtn');
+  els.micBtnText = $('micBtnText');
+  els.micState = $('micState');
+  els.meterBar = $('meterBar');
+
+  els.micBtn.addEventListener('click', function () {
+    if (engine.running) { stopMic(); return; }
+    /* 【2026-09-10 关键修正·Wake Lock 必须趁手势还在时申请】
+     * 症状：开麦后 isWakeLockActive() 一直是 false，屏幕照样会黑。
+     * 原因：Wake Lock API 要求"用户手势（user gesture）"上下文。
+     *   旧代码在 startMic() -> getUserMedia() 的 .then() 里才申请，
+     *   那时异步回调早已脱离手势上下文，Edge/Chrome 会静默拒绝。
+     * 正确做法：在点击处理器里【同步】发起申请（不等 getUserMedia），
+     *   此时手势上下文有效，申请能成功。反正用户点了"打开麦克风"
+     *   就是同意开常亮的，先申请没有副作用。 */
+    if (wantWakeLock) {
+      try { engine.requestWakeLock(); } catch (e) {}
+    }
+    if (wantKeepAlive) {
+      // Media Session 不要求手势，但早点建立能让系统更快认作"媒体页"
+      try { engine.setupMediaSession(); } catch (e) {}
+    }
+    startMic();
+  });
+
+  // 音量条
+  engine.on('level', function (rms) {
+    var pct = Math.min(100, Math.round(rms * 320));
+    els.meterBar.style.width = pct + '%';
+  });
+
+  /* =============================================================
+   * 4. 滑块
+   * ============================================================= */
+  function bindSlider(id, valId, fn) {
+    var s = $(id), v = $(valId);
+    function upd() {
+      v.textContent = s.value;
+      fn(parseInt(s.value, 10));
+    }
+    s.addEventListener('input', upd);
+    return upd;
+  }
+
+  var updVol = bindSlider('s-vol', 'v-vol', function (x) { engine.setVolume(x); });
+  var updRev = bindSlider('s-rev', 'v-rev', function (x) { engine.setReverb(x); });
+  var updHi  = bindSlider('s-hi',  'v-hi',  function (x) { engine.setHigh(x); });
+  var updLo  = bindSlider('s-lo',  'v-lo',  function (x) { engine.setLow(x); });
+  var updNr  = bindSlider('s-nr',  'v-nr',  function (x) {
+    engine.setDenoise(x);
+    /* 【2026-09-10 修正】只有在"用户真的拖了滑块"时才取消场景高亮。
+     * 之前这里无条件清 currentScene，导致启动初始化调用 updNr() 时
+     * 就把默认场景 indoor 给清掉了 —— 页面一打开就没有场景是高亮的，
+     * 用户会以为"没选中任何降噪档位"。 */
+    if (updNr._user) {
+      currentScene = null;
+      refreshSceneUI();
+      if ($('sceneHint')) $('sceneHint').textContent = '已手动调整降噪强度';
+    }
+  });
+  // 包装：区分"用户拖动"与"程序初始化"
+  (function () {
+    var s = $('s-nr');
+    if (!s) return;
+    s.addEventListener('input', function () { updNr._user = true; }, true);
+  })();
+
+  // 唱歌模式专属滑块
+  var updCorrect = bindSlider('s-correct', 'v-correct', function (x) { engine.setPitchCorrect(x); });
+  var updFormant = bindSlider('s-formant', 'v-formant', function (x) { engine.setFormant(x); });
+  var updRetune  = bindSlider('s-retune',  'v-retune',  function (x) { engine.setRetune(x); });
+  var updThick   = bindSlider('s-thick',   'v-thick',   function (x) { engine.setThicken(x); });
+  var updDeEss   = bindSlider('s-deess',   'v-deess',   function (x) { engine.setDeEss(x); });
+
+  // 专业音色链滑块（2026-09-10 新增）
+  var updWarmth  = bindSlider('s-warmth',  'v-warmth',  function (x) {
+    engine.setWarmth(x); currentPro = null; refreshProUI();
+  });
+  var updClarity = bindSlider('s-clarity', 'v-clarity', function (x) {
+    engine.setClarity(x); currentPro = null; refreshProUI();
+  });
+  var updAir     = bindSlider('s-air',     'v-air',     function (x) {
+    engine.setAir(x); currentPro = null; refreshProUI();
+  });
+  var updDrive   = bindSlider('s-drive',   'v-drive',   function (x) {
+    engine.setDrive(x); currentPro = null; refreshProUI();
+  });
+
+  function applyAllSliders() {
+    updVol(); updRev(); updHi(); updLo(); updNr();
+    // 混响滑块在切预设后要以预设为基准，所以重设一次
+    engine.setReverb(parseInt($('s-rev').value, 10));
+  }
+
+  // 唱歌滑块同步（预设切换后把引擎里的值刷到 UI）
+  function syncVoiceSliders() {
+    var v = engine.getVoiceFx();
+    $('s-correct').value = v.correct; $('v-correct').textContent = v.correct;
+    $('s-formant').value = v.formant; $('v-formant').textContent = v.formant;
+    $('s-retune').value  = v.retune;  $('v-retune').textContent  = v.retune;
+    $('s-thick').value   = v.thicken; $('v-thick').textContent   = v.thicken;
+    $('s-deess').value   = v.deEss;   $('v-deess').textContent   = v.deEss;
+  }
+
+  /* =============================================================
+   * 4.0b 屏幕常亮 / 后台保活 开关（2026-09-10 新增·诉求③）
+   * ============================================================= */
+  var wantWakeLock = true;    // 用户是否想要屏幕常亮
+  var wantKeepAlive = true;   // 用户是否想要后台保活
+
+  function initKeepAliveUI() {
+    var cap = engine.getKeepAliveCapability();
+    // 不支持的话给出明确提示（不让用户对着一个没用的开关点）
+    if (!cap.wakeLock && $('wakeUnsupported')) {
+      $('wakeUnsupported').classList.remove('hide');
+      $('wakeSwitch').classList.remove('on');
+      wantWakeLock = false;
+    }
+    if (!cap.mediaSession && $('msUnsupported')) {
+      $('msUnsupported').classList.remove('hide');
+      $('keepSwitch').classList.remove('on');
+      wantKeepAlive = false;
+    }
+
+    // 把当前偏好同步给引擎：开麦时引擎按这里的意愿决定是否申请锁
+    function syncKeepAlivePrefs() {
+      if (engine.setKeepAlivePrefs) {
+        engine.setKeepAlivePrefs({ wantWakeLock: wantWakeLock, wantKeepAlive: wantKeepAlive });
+      }
+    }
+    syncKeepAlivePrefs();
+
+    $('wakeSwitch').addEventListener('click', function () {
+      if (!cap.wakeLock) {
+        showMicState('你的浏览器不支持屏幕常亮，建议用「Chrome」或「Edge」打开');
+        return;
+      }
+      wantWakeLock = !wantWakeLock;
+      this.classList.toggle('on', wantWakeLock);
+      syncKeepAlivePrefs();
+      if (wantWakeLock) {
+        if (engine.running) engine.requestWakeLock();
+        showMicState('已开启屏幕常亮，屏幕不会自己黑掉了');
+      } else {
+        engine.releaseWakeLock();
+        showMicState('已关闭屏幕常亮。注意：屏幕黑了麦克风会停');
+      }
+    });
+
+    $('keepSwitch').addEventListener('click', function () {
+      if (!cap.mediaSession) {
+        showMicState('你的浏览器不支持后台保活，建议用「Chrome」或「Edge」打开');
+        return;
+      }
+      wantKeepAlive = !wantKeepAlive;
+      this.classList.toggle('on', wantKeepAlive);
+      syncKeepAlivePrefs();
+      if (wantKeepAlive) {
+        if (engine.running) engine.setupMediaSession();
+        showMicState('已开启后台保活，切换 App 后更不容易被系统回收');
+      } else {
+        engine.clearMediaSession();
+        showMicState('已关闭后台保活');
+      }
+    });
+  }
+
+  // 引擎状态变化时，把常亮状态同步到开关（系统可能自己释放了锁）
+  engine.on('wakelock', function (st) {
+    if (!$('wakeSwitch')) return;
+    // 系统单方面释放（切后台/低电量）时，开关视觉上回到"关"，
+    // 但不改 wantWakeLock —— 回到前台会自动重申请。
+    if (st && st.supported === false) {
+      if ($('wakeUnsupported')) $('wakeUnsupported').classList.remove('hide');
+      $('wakeSwitch').classList.remove('on');
+      return;
+    }
+    if (st && st.reason === 'manual') {
+      $('wakeSwitch').classList.toggle('on', false);
+    }
+    // 浏览器拒绝了常亮申请（省电模式/低电量/切后台）——如实告诉用户，别让开关"骗人"
+    if (st && st.reason === 'rejected') {
+      showMicState('屏幕常亮没能开启（可能是省电模式）。注意：屏幕黑了麦克风会停');
+    }
+  });
+
+  /* =============================================================
+   * 4.1 模式切换：说话 / 唱歌
+   * ============================================================= */
+  var mode = 'talk';   // 'talk' | 'sing'
+
+  function setMode(m) {
+    mode = (m === 'sing') ? 'sing' : 'talk';
+    var isSing = (mode === 'sing');
+
+    $('modeTalk').classList.toggle('active', !isSing);
+    $('modeSing').classList.toggle('active', isSing);
+    $('singCard').classList.toggle('hide', !isSing);
+    $('pitchBox').classList.toggle('hide', !isSing);
+    /* 【2026-09-10】降噪场景卡在所有模式都显示（说话时也可能在户外），
+     * 专业音色卡只在唱歌模式显示（说话不需要染色）。 */
+    if ($('denoiseCard')) $('denoiseCard').classList.remove('hide');
+    if ($('proCard')) $('proCard').classList.toggle('hide', !isSing);
+
+    $('modeNote').textContent = isSing
+      ? '唱歌模式：自动修音准、声音更饱满，像歌手一样唱'
+      : '说话模式：适合直播说话，声音清晰自然';
+
+    // 通知引擎（返回的是"意图"，不代表此刻是否已生效——Worklet 要开麦才加载）
+    engine.setSinging(isSing);
+    // 只有"开麦之后仍没能生效"才提示降级，避免误报"本机不支持"
+    if (isSing && engine.running && !engine.getVoiceFx().on) {
+      $('modeNote').textContent = '唱歌模式：已切换唱歌音效（本机暂不支持实时修音，其余美化仍生效）';
+    }
+    if (isSing) syncVoiceSliders();
+    /* 【2026-09-10】户外唱歌降噪引导：唱歌模式最怕环境嘈杂，
+     * 如果用户还停在低降噪档，主动指路「户外/人群」强档（不擅自改设置）。 */
+    if (isSing && (currentScene === 'off' || currentScene === 'indoor') && $('sceneHint')) {
+      $('sceneHint').textContent = '唱歌时周围太吵？点上方「户外/人群」开最强降噪';
+    }
+    showMicState(isSing
+      ? (engine.running ? '唱歌模式已开启，开唱吧' : '唱歌模式已选好，点上面按钮开麦')
+      : (engine.running ? '麦克风工作中，对着手机说话吧' : '麦克风已关闭'));
+  }
+
+  $('modeTalk').addEventListener('click', function () { setMode('talk'); });
+  $('modeSing').addEventListener('click', function () { setMode('sing'); });
+
+  // 音高显示（只读，不录音）
+  engine.on('pitch', function (p) {
+    if (mode !== 'sing') return;
+    if (!p) {
+      $('pitchNote').textContent = '--';
+      $('pitchNeedle').style.left = '50%';
+      return;
+    }
+    $('pitchNote').textContent = p.note || '--';
+    // 音分偏差 -50~+50 映射到 0~100%
+    var pct = 50 + Math.max(-50, Math.min(50, p.cents));
+    $('pitchNeedle').style.left = pct + '%';
+  });
+
+  /* =============================================================
+   * 5. 兑换码
+   * ============================================================= */
+  function showCodeMsg(txt, cls) {
+    els.codeMsg.textContent = txt;
+    els.codeMsg.className = 'code-msg ' + (cls || '');
+  }
+
+  els.codeMsg = $('codeMsg');
+
+  function applyUnlocked() {
+    unlocked = true;
+    engine.setUnlocked(true);
+    $('unlockedBadge').classList.add('show');
+    $('codeArea').style.display = 'none';
+    refreshPresetUI();
+  }
+
+  $('codeBtn').addEventListener('click', function () {
+    var raw = $('codeInput').value;
+    var norm = raw.replace(/[\s\-_—－]/g, '');
+    if (norm.length < 6) {
+      showCodeMsg('兑换码看起来不对，请检查后重新输入', 'bad');
+      return;
+    }
+    $('codeBtn').disabled = true;
+    showCodeMsg('正在校验…', 'wait');
+
+    window.MicUnlock.redeem(raw).then(function (r) {
+      $('codeBtn').disabled = false;
+      if (r.ok) {
+        showCodeMsg('解锁成功！所有高级音效都能用了', 'ok');
+        applyUnlocked();
+      } else if (r.reason === 'invalid') {
+        showCodeMsg('兑换码不正确，请核对后重新输入', 'bad');
+      } else if (r.reason === 'format') {
+        showCodeMsg('兑换码看起来不对，请检查后重新输入', 'bad');
+      } else if (r.reason === 'network') {
+        showCodeMsg('网络不太好，请稍后重试', 'bad');
+      } else {
+        showCodeMsg('兑换码不正确，请核对后重新输入', 'bad');
+      }
+    }).catch(function () {
+      $('codeBtn').disabled = false;
+      showCodeMsg('校验出错了，请稍后重试', 'bad');
+    });
+  });
+
+  // 回车即提交
+  $('codeInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); $('codeBtn').click(); }
+  });
+
+  /* =============================================================
+   * 6. 生命周期：切后台/锁屏 提示
+   * ============================================================= */
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (engine.running) showMicState('已切到后台，麦克风暂停了。回到本页面会自动恢复', '#8a6100');
+    } else {
+      if (engine.running) {
+        if (engine.ctx && engine.ctx.state === 'suspended') {
+          engine.ctx.resume().catch(function () {});
+        }
+        showMicState('麦克风工作中，对着手机说话吧');
+      }
+    }
+  });
+
+  // 锁屏 / 页面卸载时提示（浏览器无法阻止，只能提醒用户别锁屏）
+  window.addEventListener('pagehide', function () { /* 仅提示，不做任何存储 */ });
+
+  /* =============================================================
+   * 7. 启动
+   * ============================================================= */
+  renderPresets();
+  renderScenes();     // 降噪场景（2026-09-10 新增）
+  renderPros();       // 专业音色预设（2026-09-10 新增）
+  initKeepAliveUI();  // 屏幕常亮 / 后台保活开关（2026-09-10 新增）
+
+  /* 【2026-09-10 新增】外放 / 蓝牙设备识别：
+   * - watchOutputDevices 注册 devicechange 监听（连/断蓝牙音箱、插拔耳机都会触发）；
+   * - devRefresh 把检测结果写进「外放 / 蓝牙设备」卡片（能列名字就列名字，
+   *   iPhone 只给"默认"就如实说明 —— 声音照样自动走蓝牙，不影响使用）。 */
+  var devRefresh = function () {
+    engine.getOutputDevices().then(function (info) {
+      var t = $('devTitle'), s = $('devSub');
+      if (!t || !s) return;
+      if (!info.supported) {
+        t.textContent = '此浏览器不提供设备名单（不影响使用）';
+        s.innerHTML = '声音仍会自动从手机当前的播放设备出：连了蓝牙音箱就从蓝牙出。';
+        return;
+      }
+      if (!info.outputs.length) {
+        t.textContent = '暂未读到播放设备名单';
+        s.innerHTML = '点开麦克风（拿到权限）后会自动重试。不管名单读不读得到，<b>声音都会自动从蓝牙音箱/当前喇叭出</b>。';
+        return;
+      }
+      var names = info.outputs.map(function (d) { return d.label || ''; });
+      var uniq = names.filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+      var onlyGeneric = !uniq.length || uniq.every(function (n) {
+        return !n || /^default$/i.test(n) || n === '默认';
+      });
+      if (onlyGeneric) {
+        // iPhone Safari / 受限环境：只给 default，不给具体名字（苹果隐私规定）
+        t.textContent = '声音会自动走手机当前的播放设备 ✓';
+        s.innerHTML = '你的手机不向网页透露具体设备名（iPhone 和部分安卓的隐私规定），但这不影响：'
+                    + '系统连了蓝牙音箱，声音就自动从蓝牙音箱出；拔掉就连回手机喇叭。';
+      } else {
+        t.textContent = '检测到 ' + uniq.length + ' 个播放设备' + (info.bluetooth ? ' · 含蓝牙设备 ✓' : '');
+        s.innerHTML = '名单：' + uniq.slice(0, 3).join('、') + (uniq.length > 3 ? ' 等' : '')
+                    + '。连/断蓝牙、插拔耳机时这里会自动刷新，声音跟着系统切换。';
+      }
+    });
+  };
+  try {
+    engine.watchOutputDevices();          // 设备插拔 → 自动刷新
+    engine.on('devices', function () { devRefresh(); });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) { try { devRefresh(); } catch (e) {} }
+    });
+    devRefresh();                          // 进页面先检测一次
+  } catch (e) {}
+
+
+  /* 【2026-09-10】测试模式：本机 / 局域网 + 网址带 ?test=1 → 直接解锁全部高级功能。
+   * 用途：老板测试阶段不用输兑换码（写入本浏览器解锁标记 = 等同输真码，刷新不丢）。
+   * 安全边界：只在 localhost / 127.0.0.1 / 内网 IP（192.168.* / 10.* / 172.16-31.*）生效，
+   *           挂到公网域名后此参数完全无效 —— 不影响正式售卖的收费逻辑。 */
+  function _isLocalOrLanHost() {
+    var h = location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' ||
+           /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h);
+  }
+  var _testViaParam = /[?&]test=1/.test(location.search) && _isLocalOrLanHost();
+  try {
+    if (_testViaParam) sessionStorage.setItem('micfx_test_mode', '1');
+  } catch (e) {}
+  var _testMode = _testViaParam;
+  if (!_testMode) {
+    try { _testMode = sessionStorage.getItem('micfx_test_mode') === '1' && _isLocalOrLanHost(); } catch (e) {}
+  }
+
+  // 读取已解锁状态
+  if (window.MicUnlock.isUnlocked()) {
+    applyUnlocked();
+  } else if (_testMode) {
+    // 测试模式：写解锁标记（等同真码）→ 解锁 → 换提示文案，让老板一眼看出已全开
+    try {
+      localStorage.setItem('micfx_unlocked_v1',
+        JSON.stringify({ ok: true, code: 'TEST****', at: Date.now() }));
+    } catch (e) {}
+    applyUnlocked();
+    var _badge = $('unlockedBadge');
+    if (_badge) _badge.textContent = '🧪 测试模式：全部高级功能已解锁（本机/局域网测试专用）';
+    showMicState('测试模式已开启，所有功能都能直接用');
+  }
+
+  // 初始化滑块值到引擎（未开麦克风时只更新显示）
+  updVol(); updRev(); updHi(); updLo(); updNr();
+  // 专业音色链滑块初值同步到引擎（这样即使没点预设，默认值也生效）
+  updWarmth(); updClarity(); updAir(); updDrive();
+})();
+</script>
+</body>
+</html>
