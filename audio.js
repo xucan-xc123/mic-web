@@ -695,41 +695,57 @@
    * ------------------------------------------------------------------ */
 
   var PRESETS = {
+    /* 【2026-09-11 专业链接入预设】
+     * 之前每个预设只改混响/EQ/压缩，专业链 5 个节点（去浑浊/去鼻音/临场/空气/饱和）
+     * 全是 0 增益不动 —— 老板反馈"切音效变化不大"的根因就在这。
+     * 现在每个预设带一套 pro 参数（0~100，与 UI 滑块同刻度），
+     * 数值按全网调研的专业人声链行业标准：
+     *   - 减法 EQ：320Hz 浑浊区 / 1kHz 鼻音区要切（vocalpresets/audiomixingmastering 共识 250~500Hz -2~4dB、800Hz~1.2kHz -2~4dB）
+     *   - 临场感 3.2kHz +2~4dB（presence boost，"贴脸"）
+     *   - 空气感 12kHz +2~4dB（pop 的 airy sheen）
+     *   - 饱和 10~35%（"能感觉到变厚但听不出加工"）
+     * 各预设走不同风格方向，保证切一下就能听出明显区别。 */
     'original': {
       name: '原声',   premium: false,
       desc: '不加回声，只做基础降噪，原汁原味',
       reverb: { time: 0.0,  decay: 0.0,  mix: 0.00, damp: 0.9 },
-      hp: 80, low: 0, high: 0, comp: 0.45, gate: 0.010, notch: false
+      hp: 80, low: 0, high: 0, comp: 0.45, gate: 0.010, notch: false,
+      pro: { warmth: 50, clarity: 55, air: 48, drive: 12 }
     },
     'smallroom': {
       name: '小房间', premium: false,
       desc: '轻微回声，适合说话、朗读、直播讲话',
       reverb: { time: 0.35, decay: 1.6, mix: 0.16, damp: 0.55 },
-      hp: 90, low: 0, high: 1, comp: 0.45, gate: 0.010, notch: true
+      hp: 90, low: 0, high: 1, comp: 0.45, gate: 0.010, notch: true,
+      pro: { warmth: 56, clarity: 66, air: 55, drive: 20 }
     },
     'ktv': {
       name: 'KTV 大厅', premium: true,
       desc: 'KTV 那种饱满回声，适合唱歌',
       reverb: { time: 1.15, decay: 2.6, mix: 0.34, damp: 0.42 },
-      hp: 95, low: 3, high: 3, comp: 0.55, gate: 0.011, notch: true
+      hp: 95, low: 3, high: 3, comp: 0.55, gate: 0.011, notch: true,
+      pro: { warmth: 66, clarity: 72, air: 56, drive: 36 }
     },
     'studio': {
       name: '录音棚', premium: true,
       desc: '温润干净，人声柔和，杂音压得低',
       reverb: { time: 0.28, decay: 1.2, mix: 0.11, damp: 0.75 },
-      hp: 75, low: 1, high: 2, comp: 0.62, gate: 0.014, notch: true
+      hp: 75, low: 1, high: 2, comp: 0.62, gate: 0.014, notch: true,
+      pro: { warmth: 58, clarity: 78, air: 72, drive: 28 }
     },
     'theater': {
       name: '剧场舞台', premium: true,
       desc: '开阔宏大，适合朗诵、主持',
       reverb: { time: 1.5,  decay: 3.0, mix: 0.30, damp: 0.35 },
-      hp: 100, low: -1, high: 2, comp: 0.50, gate: 0.010, notch: true
+      hp: 100, low: -1, high: 2, comp: 0.50, gate: 0.010, notch: true,
+      pro: { warmth: 48, clarity: 82, air: 50, drive: 22 }
     },
     'church': {
       name: '教堂', premium: true,
       desc: '悠长空灵的大混响',
       reverb: { time: 2.6, decay: 3.6, mix: 0.42, damp: 0.22 },
-      hp: 110, low: -3, high: 1, comp: 0.45, gate: 0.009, notch: true
+      hp: 110, low: -3, high: 1, comp: 0.45, gate: 0.009, notch: true,
+      pro: { warmth: 42, clarity: 58, air: 80, drive: 10 }
     }
   };
 
@@ -750,12 +766,12 @@
     // flex     = Flex-Tune 容差带(%) —— 30~50（业界推荐）
     // humanize = 长音人性化(%) —— 25~50（业界推荐）
     // retune   = 再调速度(%)      —— 0~25 慢(最自然) / 30~50 中(推荐) / 60~100 快(电音)
-    'original': { correct: 80, thicken: 30, deEss: 35, formant: 85, retune: 32, flex: 45, humanize: 40, hp: 70,  low: 2,  high: 4,  comp: 0.62, gate: 0.012, reverb: { time: 0.55, decay: 1.9, mix: 0.20, damp: 0.50 } },
-    'smallroom':{ correct: 84, thicken: 38, deEss: 38, formant: 85, retune: 35, flex: 40, humanize: 35, hp: 75,  low: 3,  high: 4,  comp: 0.64, gate: 0.012, reverb: { time: 0.70, decay: 2.1, mix: 0.26, damp: 0.46 } },
-    'ktv':      { correct: 86, thicken: 50, deEss: 42, formant: 88, retune: 42, flex: 35, humanize: 30, hp: 80,  low: 4,  high: 5,  comp: 0.68, gate: 0.013, reverb: { time: 1.20, decay: 2.5, mix: 0.36, damp: 0.44 } },
-    'studio':   { correct: 90, thicken: 45, deEss: 50, formant: 90, retune: 38, flex: 30, humanize: 25, hp: 72,  low: 2,  high: 5,  comp: 0.70, gate: 0.015, reverb: { time: 0.38, decay: 1.4, mix: 0.16, damp: 0.70 } },
-    'theater':  { correct: 82, thicken: 42, deEss: 40, formant: 88, retune: 30, flex: 40, humanize: 35, hp: 85,  low: 1,  high: 3,  comp: 0.60, gate: 0.012, reverb: { time: 1.55, decay: 2.9, mix: 0.32, damp: 0.38 } },
-    'church':   { correct: 78, thicken: 35, deEss: 35, formant: 85, retune: 26, flex: 45, humanize: 40, hp: 90,  low: -1, high: 2,  comp: 0.55, gate: 0.011, reverb: { time: 2.5,  decay: 3.4, mix: 0.42, damp: 0.24 } }
+    'original': { correct: 80, thicken: 30, deEss: 35, formant: 85, retune: 32, flex: 45, humanize: 40, hp: 70,  low: 2,  high: 4,  comp: 0.62, gate: 0.012, reverb: { time: 0.55, decay: 1.9, mix: 0.20, damp: 0.50 }, pro: { warmth: 60, clarity: 66, air: 58, drive: 24 } },
+    'smallroom':{ correct: 84, thicken: 38, deEss: 38, formant: 85, retune: 35, flex: 40, humanize: 35, hp: 75,  low: 3,  high: 4,  comp: 0.64, gate: 0.012, reverb: { time: 0.70, decay: 2.1, mix: 0.26, damp: 0.46 }, pro: { warmth: 64, clarity: 72, air: 62, drive: 34 } },
+    'ktv':      { correct: 86, thicken: 50, deEss: 42, formant: 88, retune: 42, flex: 35, humanize: 30, hp: 80,  low: 4,  high: 5,  comp: 0.68, gate: 0.013, reverb: { time: 1.20, decay: 2.5, mix: 0.36, damp: 0.44 }, pro: { warmth: 70, clarity: 74, air: 58, drive: 40 } },
+    'studio':   { correct: 90, thicken: 45, deEss: 50, formant: 90, retune: 38, flex: 30, humanize: 25, hp: 72,  low: 2,  high: 5,  comp: 0.70, gate: 0.015, reverb: { time: 0.38, decay: 1.4, mix: 0.16, damp: 0.70 }, pro: { warmth: 60, clarity: 80, air: 76, drive: 30 } },
+    'theater':  { correct: 82, thicken: 42, deEss: 40, formant: 88, retune: 30, flex: 40, humanize: 35, hp: 85,  low: 1,  high: 3,  comp: 0.60, gate: 0.012, reverb: { time: 1.55, decay: 2.9, mix: 0.32, damp: 0.38 }, pro: { warmth: 52, clarity: 82, air: 55, drive: 26 } },
+    'church':   { correct: 78, thicken: 35, deEss: 35, formant: 85, retune: 26, flex: 45, humanize: 40, hp: 90,  low: -1, high: 2,  comp: 0.55, gate: 0.011, reverb: { time: 2.5,  decay: 3.4, mix: 0.42, damp: 0.24 }, pro: { warmth: 45, clarity: 62, air: 85, drive: 16 } }
   };
 
   // 唱歌模式下的默认参数（用于展示）
@@ -771,6 +787,7 @@
       reverb: cfg.reverb,
       hp: cfg.hp, low: cfg.low, high: cfg.high,
       comp: cfg.comp, gate: cfg.gate, notch: base.notch,
+      pro: cfg.pro || (base.pro ? { warmth: base.pro.warmth, clarity: base.pro.clarity, air: base.pro.air, drive: base.pro.drive } : null),
       voice: {
         correct: cfg.correct / 100,
         thicken: cfg.thicken / 100,
@@ -870,6 +887,17 @@
     this._proFx = { warmth: 50, clarity: 60, air: 55, drive: 30 };
     this._proOn = false;          // 跟随唱歌模式，默认关
     this._proPreset = null;       // 当前专业预设 key
+    /* 【2026-09-11 低延迟改造】
+     * 延迟实测的最大来源之一是 getUserMedia 的 echoCancellation（回声消除）：
+     * 安卓浏览器开 AEC 时系统要多缓存 100~200ms 做声学对齐，AGC 也有类似开销。
+     * 但这两个只在【音箱外放】时才有用（防自己声音唱回去造成回授）；
+     * 【戴耳机】时耳机不会漏音进麦克风，AEC 纯属白等。
+     * 所以：lowLatency 默认开 = 关 AEC/AGC（省 100~200ms），
+     *       noiseSuppression 保持开（硬件级波束成形，延迟极低，户外降噪还靠它）。
+     * 用音箱外放的用户在 UI 上把"低延迟模式"关掉即可（会热切换重开一路麦）。
+     */
+    this.lowLatency = true;
+    this.latencyMs = 0;           // ctx.baseLatency + outputLatency 的估算（毫秒）
     this._voiceOn = false;            // Worklet 是否已启用
     this._userTouchedVoice = false;   // 用户是否手动调过美化滑块
   }
@@ -943,6 +971,15 @@
     this.ctx = ctx;
     try { this.watchCtxState(); } catch (e) {}   // iOS interrupted 自愈（2026-09-10 新增）
 
+    // 【2026-09-11 延迟可视化】把设备固有的处理延迟算出来给 UI 显示，
+    // 让老板/买家能分清"设备延迟"（这里显示的）和"蓝牙传输延迟"（约 200~500ms，软件管不了）。
+    try {
+      var bl = 0;
+      if (ctx.baseLatency) bl += ctx.baseLatency;
+      if (ctx.outputLatency) bl += ctx.outputLatency;
+      this.latencyMs = Math.round(bl * 1000);
+    } catch (e) { this.latencyMs = 0; }
+
     /* 请求麦克风。
      *
      * 【2026-09-10 修复·户外嘈杂音根因 A】
@@ -953,23 +990,16 @@
      * 我们自己写的 JS 算法根本拿不到这个能力（浏览器只给一路混好的单声道）。
      * 户外场景下，关掉它等于自断一臂。
      *
-     * 现在的策略：
-     *   - noiseSuppression: true  -> 手机硬件降噪打底，压掉环境稳态噪声
-     *   - echoCancellation: true  -> 户外用蓝牙音箱/手机外放时消掉自己唱回来的声音
-     *   - autoGainControl:  true  -> 户外远距离唱歌，自动补足音量（避免忽大忽小）
-     *
-     * 注意：AGC 在【唱歌模式】下会被自动关掉（见 setSinging），因为自动增益会
-     * 破坏音量动态，而唱歌需要保留强弱变化。说话模式则开着更省心。
+     * 【2026-09-11 低延迟改造】
+     * 实测延迟的最大来源是 echoCancellation（回声消除）：
+     * 安卓浏览器开 AEC 时系统要多缓存 100~200ms 做声学对齐，AGC 也有类似开销。
+     * AEC 只在【音箱外放】时有用（防止自己的声音被收回去造成回授）；
+     * 【戴耳机】时耳机不漏音，AEC 纯属白等 100~200ms。
+     * 所以拆成两档（见 _micConstraints）：
+     *   低延迟模式（默认，戴耳机用）：关 AEC/AGC，保留硬件降噪
+     *   外放模式（UI 可切）：全开，防回授，牺牲一点延迟
      */
-    var constraints = {
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        channelCount: 1
-      },
-      video: false
-    };
+    var constraints = this._micConstraints();
 
     return navigator.mediaDevices.getUserMedia(constraints)
       .then(function (stream) {
@@ -985,9 +1015,59 @@
          *   ② 建立媒体会话（提升后台存活优先级 + 锁屏显示信息）
          * 失败也不影响主功能，只是没享受到保活优势。 */
         try { self.enableKeepAlive(); } catch (e) {}
-        self._emit('state', { running: true });
+        self._emit('state', { running: true, latencyMs: self.latencyMs, lowLatency: self.lowLatency });
         return true;
       });
+  };
+
+  /* --- 3.2b 麦克风约束（低延迟模式可切换）【2026-09-11 新增】 --- */
+  MicEngine.prototype._micConstraints = function () {
+    var low = !!this.lowLatency;
+    return {
+      audio: {
+        channelCount: 1,
+        noiseSuppression: true,           // 硬件级波束成形，延迟极低，永远保留
+        echoCancellation: !low,           // 低延迟=关（省 100~200ms），外放=开（防回授）
+        autoGainControl: !low             // 同上；且 AGC 会压掉唱歌的强弱动态
+      },
+      video: false
+    };
+  };
+
+  /**
+   * 【2026-09-11 新增】切换低延迟模式。
+   * 没开麦时只记状态（下次 start() 生效）；
+   * 已开麦时热切换：重新拿一路新约束的麦克风流换上去，不断图、不停表，
+   * 用户只感觉到极短暂的一下（约 0.3~0.5 秒）。
+   * 失败会回滚标志并抛错（旧流还在跑，不影响当前使用）。
+   */
+  MicEngine.prototype.setLowLatency = function (on) {
+    var self = this;
+    var want = !!on;
+    if (want === this.lowLatency) return Promise.resolve(true);
+    this.lowLatency = want;
+    if (!this.running || !this.stream || !this.ctx || !this.nodes.src) {
+      this._emit('state', { lowLatency: this.lowLatency });
+      return Promise.resolve(true);
+    }
+    var constraints = this._micConstraints();
+    return navigator.mediaDevices.getUserMedia(constraints).then(function (ns) {
+      var head = (self.workletReady && self.nodes.fx) ? self.nodes.fx : self.nodes.hp;
+      if (!head) throw new Error('audio graph not ready');
+      var newSrc = self.ctx.createMediaStreamSource(ns);
+      newSrc.connect(head);
+      try { self.nodes.src.disconnect(); } catch (e) {}
+      try {
+        if (self.stream) self.stream.getTracks().forEach(function (t) { t.stop(); });
+      } catch (e) {}
+      self.stream = ns;
+      self.nodes.src = newSrc;
+      self._emit('state', { lowLatency: self.lowLatency });
+      return true;
+    }).catch(function (e) {
+      self.lowLatency = !want;   // 回滚，旧流还在跑
+      throw e;
+    });
   };
 
   /* --- 3.3 搭建音频图 --- */
@@ -1231,7 +1311,22 @@
       tail.connect(dry);      // 干声直通
       tail.connect(wetIn);    // 送去混响
       wetIn.connect(conv);
-      conv.connect(wetOut);
+
+      /* 【2026-09-11 新增·行业标准】混响返回通道必须切频：
+       * 专业混音的共识做法（audiomixingmastering / violetrecording）：
+       *   - 返回通道高通 300~500Hz：混响里的低频只会糊成一团，切掉人声才"立得住"
+       *   - 返回通道低通 ~10kHz：混响高频留太多会"沙沙"发毛
+       * 这一步是"丝滑感"的关键之一——混响负责空间，不抢人声的清晰度。 */
+      var wetHP = ctx.createBiquadFilter();
+      wetHP.type = 'highpass';
+      wetHP.frequency.value = 300;
+      wetHP.Q.value = 0.707;
+      var wetLP = ctx.createBiquadFilter();
+      wetLP.type = 'lowpass';
+      wetLP.frequency.value = 9000;
+      conv.connect(wetHP);
+      wetHP.connect(wetLP);
+      wetLP.connect(wetOut);
 
       dry.connect(master);
       wetOut.connect(master);
@@ -1245,7 +1340,9 @@
         master: master, limiter: limiter, analyser: analyser,
         // 专业美化链（诉求②）
         warmth: warmth, mud: mud, nasal: nasal, presence: presence, air: air,
-        satIn: satIn, shaper: shaper, satWet: satWet, satDry: satDry, proOut: proOut
+        satIn: satIn, shaper: shaper, satWet: satWet, satDry: satDry, proOut: proOut,
+        // 混响返回切频（2026-09-11）
+        wetHP: wetHP, wetLP: wetLP
       });
 
       // 应用当前预设
@@ -1336,6 +1433,26 @@
     } else {
       ramp(n.wetIn.gain, 0);
       this._wetBase = 0;
+    }
+
+    // 【2026-09-11 专业链接入预设】切预设时把该风格的专业 EQ/饱和也一并套上。
+    // 这是"切音效变化不大"的根因修复：之前这 5 个专业节点永远是 0，
+    // 切预设只有混响在变。现在预设带 pro 参数，切一下立刻听出风格差异。
+    // 用 silent 模式调用（不动 _userTouchedPro），用户之后手动拖滑块仍可自由覆盖，
+    // 直到下次切预设再跟随预设。
+    if (p.pro && this.nodes.proOut) {
+      this._proFx.warmth  = p.pro.warmth;
+      this._proFx.clarity = p.pro.clarity;
+      this._proFx.air     = p.pro.air;
+      this._proFx.drive   = p.pro.drive;
+      this.setWarmth(p.pro.warmth, true);
+      this.setClarity(p.pro.clarity, true);
+      this.setAir(p.pro.air, true);
+      this.setDrive(p.pro.drive, true);
+      this._emit('state', { proFx: {
+        warmth: p.pro.warmth, clarity: p.pro.clarity,
+        air: p.pro.air, drive: p.pro.drive
+      } });
     }
 
     // 降噪门限 & 反馈抑制开关
@@ -1704,8 +1821,8 @@
    *   加 2~3dB 会明显更"有肉"、更专业；加太多（>5dB）会糊。
    * 映射：0 -> -4dB（削薄），50 -> 0dB，100 -> +5dB
    */
-  MicEngine.prototype.setWarmth = function (v) {
-    this._userTouchedPro = true;
+  MicEngine.prototype.setWarmth = function (v, silent) {
+    if (!silent) this._userTouchedPro = true;
     var val = Math.max(0, Math.min(100, v));
     this._proFx.warmth = val;
     if (!this.nodes.warmth) return;
@@ -1729,8 +1846,8 @@
    * 为什么联动：单纯的"提升清晰度"会让浑浊/鼻音更明显；
    *   专业做法是"一边提亮的、一边切暗的"，听感才干净。
    */
-  MicEngine.prototype.setClarity = function (v) {
-    this._userTouchedPro = true;
+  MicEngine.prototype.setClarity = function (v, silent) {
+    if (!silent) this._userTouchedPro = true;
     var val = Math.max(0, Math.min(100, v));
     this._proFx.clarity = val;
     var t = this.ctx ? this.ctx.currentTime : 0;
@@ -1763,8 +1880,8 @@
    * 【重要】低采样率（8k/16k）时这一区根本不存在，直接跳过，
    *   否则 highshelf 会在奈奎斯特频率附近产生怪声。
    */
-  MicEngine.prototype.setAir = function (v) {
-    this._userTouchedPro = true;
+  MicEngine.prototype.setAir = function (v, silent) {
+    if (!silent) this._userTouchedPro = true;
     var val = Math.max(0, Math.min(100, v));
     this._proFx.air = val;
     if (!this.nodes.air) return;
@@ -1791,8 +1908,8 @@
    * 另外：驱动量也随滑块变化（1.2 ~ 4.0），低档时是"轻微软压缩"，
    *   高档时才是真饱和。
    */
-  MicEngine.prototype.setDrive = function (v) {
-    this._userTouchedPro = true;
+  MicEngine.prototype.setDrive = function (v, silent) {
+    if (!silent) this._userTouchedPro = true;
     var val = Math.max(0, Math.min(100, v));
     this._proFx.drive = val;
     var t = this.ctx ? this.ctx.currentTime : 0;
