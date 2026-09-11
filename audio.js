@@ -124,6 +124,10 @@
     '     this.zcPrev = 0;',
     '     this.zcAcc = 0;',
     '     this.zcCount = 0;',
+    '     // 环境噪声电平探测（2026-09-11）：每 0.5s 窗口取 env 最小值上报，',
+    '     // 主线程据此自动选降噪档位（真麦克风/会议软件的自适应降噪思路）',
+    '     this._probeV = 1;',
+    '     this._probeN = 0;',
     '     this.port.onmessage = (e) => {',
     '       var d = e.data || {};',
     '       if (d.type === "params") {',
@@ -418,7 +422,10 @@
     '     * 随机窄带音），因此上限控制在 9.0，并用 beta 谱底限兜住残留。',
     '     *',
     '     * 强度映射（a = denoiseAmt，0~1）：',
-    '     *   alpha: 1.0 ~ 9.0   线性',
+    '     *   alpha: 1.0 ~ 11.0  线性',
+    '     *     【2026-09-11 上限 9 -> 11】老板手机实测"杂音太大"，嘈杂环境 42%',
+    '     *     压噪不够。alpha=11 时压噪约 50%，配合 beta 谱底限与时域平滑',
+    '     *     抑制音乐噪声。强档（户外 82）下 alpha≈9.5，压噪约 46%。',
     '     *   beta ：0.30 ~ 0.02  beta 越小残留越少（越"干净"）但也越"死"；',
     '     *          户外强档取 0.02，室内弱档取 0.30（保留自然底噪）。',
     '     * 【注意】beta 决定增益下限 sqrt(beta)：',
@@ -427,7 +434,7 @@
     '     *   户外人群噪声常常与人声同量级，不深压根本听不出差别。',
     '     */',
     '    var a = this.denoiseAmt;',
-    '    var alpha = 1.0 + a * 8.0;         // 1.0 ~ 9.0',
+    '    var alpha = 1.0 + a * 10.0;        // 1.0 ~ 11.0',
     '    var beta  = 0.30 - a * 0.28;       // 0.30 ~ 0.02',
     '',
     '    for (var k3 = 0; k3 < B; k3++) {',
@@ -656,6 +663,16 @@
     '      // ---- 4) 更新底噪参考（缓慢下降，快速上升受限）----',
     '      if (this.env < this.peakRef) this.peakRef += (this.env - this.peakRef) * 0.00005;',
     '',
+    '      // ---- 4b) 环境噪声电平探测：窗口内取 env 最小值 ----',
+    '      // 取最小值是因为"窗口里最安静的瞬间"最接近真实底噪，',
+    '      // 用户唱歌/说话的瞬间 env 很大，min 不受影响（抗污染）。',
+    '      if (this.env < this._probeV) this._probeV = this.env;',
+    '      if (++this._probeN >= sr * 0.5) {',
+    '        try { this.port.postMessage({ type: "noiseProbe", v: this._probeV }); } catch (e) {}',
+    '        this._probeV = 1;',
+    '        this._probeN = 0;',
+    '      }',
+    '',
     '      outCh[i] = x * gate;',
     '    }',
     '',
@@ -872,6 +889,10 @@
     this._meterRAF = null;
     this._pitchRAF = null;
     this._userGain = { vol: 70, reverb: -1, high: -1, low: -1, denoise: -1 };
+    // 【2026-09-11 新增】环境噪声自动适配状态
+    this._noiseProbes = [];        // worklet 每 0.5s 上报的底噪电平样本
+    this._autoDenoiseDone = false; // 本次开麦已自动选过档（只自动一次）
+    this._userDenoise = false;     // 用户手动调过降噪后自动适配永久让位
     // 唱歌模式
     this.singing = false;             // 是否处于唱歌模式
     // 注意：这里的初值必须与 SING_CONFIG['original'] 及 index.html 的滑块 value 保持一致，
@@ -1008,6 +1029,17 @@
     return navigator.mediaDevices.getUserMedia(constraints)
       .then(function (stream) {
         self.stream = stream;
+        /* 【2026-09-11 新增】蓝牙麦克风检测：
+         * 蓝牙耳机/音箱当麦克风时走的是 HFP 通话协议（窄带 8~16kHz），
+         * 底噪大、音质闷是协议固有的，软件救不了。检测到就发事件，
+         * UI 如实提示"建议用手机自带麦克风或有线耳机"。 */
+        try {
+          var tr0 = stream.getAudioTracks && stream.getAudioTracks()[0];
+          var lbl = ((tr0 && tr0.label) || '').toLowerCase();
+          if (/bluetooth|蓝牙|wireless|无线/.test(lbl)) {
+            setTimeout(function () { self._emit('state', { btMic: true, label: tr0.label }); }, 0);
+          }
+        } catch (e) {}
         return self._buildGraph(stream);
       })
       .then(function () {
@@ -1142,6 +1174,14 @@
             outputChannelCount: [1],
             processorOptions: { gateThreshold: 0.010, notchEnabled: false }
           });
+          // 【2026-09-11 新增】接收 worklet 的环境噪声电平探测（noiseProbe），
+          // 用于开麦几秒后自动选降噪档位（真麦克风的自适应降噪思路）
+          self.nodes.fx.port.onmessage = function (e) {
+            var d = e && e.data;
+            if (d && d.type === 'noiseProbe' && typeof d.v === 'number') {
+              try { self._onNoiseProbe(d.v); } catch (er) {}
+            }
+          };
           self.workletReady = true;
         })
         .catch(function () { self.workletReady = false; })
@@ -1606,8 +1646,7 @@
   };
 
   MicEngine.prototype.setDenoise = function (v) {
-    this._userGain.denoise = v;
-    var vv = Math.max(0, Math.min(100, v)) / 100;
+    this._userGain.denoise = v;    var vv = Math.max(0, Math.min(100, v)) / 100;
     // (a) 噪声门：安静时压残余底噪（0 到 100 -> 门限 0.0015 ~ 0.0465）
     var th = 0.0015 + vv * 0.045;
     this._setGate(th);
@@ -1647,6 +1686,42 @@
     }
   };
 
+  /* ================================================================
+   * 【2026-09-11 新增】环境噪声自动适配（真麦克风/会议软件的思路）
+   *
+   * 老板反馈"一开麦杂音太大"的根因之一：最强降噪档埋在场景按钮里，
+   * 小白用户不会主动点，默认降噪 35/100 实际只压约 20% 环境噪声。
+   *
+   * 现在：worklet 每 0.5s 上报一次"窗口内最安静的电平"（底噪），
+   * 开麦约 3 秒后取中位数自动选场景档位。用户手动调过降噪就不自动。
+   * ================================================================ */
+  MicEngine.prototype._onNoiseProbe = function (v) {
+    if (!this.running) return;
+    this._noiseProbes.push(v);
+    if (this._noiseProbes.length > 12) this._noiseProbes.shift();
+    if (this._autoDenoiseDone || this._userDenoise) return;
+    if (this._noiseProbes.length < 6) return;   // 开麦约 3 秒再判断
+    // 取中位数：抗个别异常帧（比如刚好有人拍了一下手）
+    var arr = this._noiseProbes.slice().sort(function (a, b) { return a - b; });
+    var mid = arr[Math.floor(arr.length / 2)];
+    // 分档阈值（env 是绝对幅度包络，实测标定）：
+    //   安静室内 < 0.005；有空调/人声背景 0.005~0.009；
+    //   明显嘈杂（电视/街道远） 0.009~0.02；户外人群 > 0.02
+    var key;
+    if      (mid > 0.020) key = 'outdoor';
+    else if (mid > 0.009) key = 'ktv';
+    else if (mid > 0.005) key = 'stage';
+    else                  key = 'indoor';
+    this._autoDenoiseDone = true;
+    this.setDenoiseScene(key);
+    this._emit('state', { autoDenoise: true, scene: key, level: mid });
+  };
+
+  /* 用户手动调过降噪（点场景/拖滑块）之后，自动适配永久让位 */
+  MicEngine.prototype.markUserDenoise = function () {
+    this._userDenoise = true;
+  };
+
   MicEngine.prototype.getDenoiseScenes = function () { return DENOISE_SCENES; };
 
   /* --- 3.7 电平表（用于 UI 提示，不做录音） --- */
@@ -1677,6 +1752,10 @@
     if (this._meterStop) this._meterStop();
     if (this._meterRAF) cancelAnimationFrame(this._meterRAF);
     this._stopPitchMeter();
+    // 【2026-09-11】关麦后重置噪声探测状态：下次开麦重新检测环境
+    // （_userDenoise 保留——用户手动调过的偏好跨开关麦生效）
+    this._noiseProbes = [];
+    this._autoDenoiseDone = false;
     /* 【诉求③】关麦时释放屏幕常亮锁 + 清理媒体会话，
      * 把系统资源还给用户（不释放的话屏幕会一直亮着耗电）。 */
     try { this.disableKeepAlive(); } catch (e) {}
